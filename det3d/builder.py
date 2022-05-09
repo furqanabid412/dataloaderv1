@@ -219,4 +219,12 @@ def build_dbsampler(cfg, logger=None):
         db_infos, groups, db_prepor, rate, grot_range, logger=logger
     )
 
+    # det3d/core/sampler/sample_ops.py
+    # db_infos : dictionary contains all the information from saved database
+    # groups : maximum number of objects after augmentation (original+sampled)
+    # db_prepor : instance to class where filtering by minimum number of lidar points is done
+    # rate: how much objects will be sampled among all saved in the database
+    # grot_range :  global rotation range for sample objects. I guess not implemented for now
+    # logger : To log the processing
+
     return sampler

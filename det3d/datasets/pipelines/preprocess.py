@@ -56,6 +56,8 @@ class Preprocess(object):
 
         res["mode"] = self.mode
 
+        # copy the pointcloud data N*8(Nuscenes) into points
+
         if res["type"] in ["WaymoDataset"]:
             if "combined" in res["lidar"]:
                 points = res["lidar"]["combined"]
@@ -66,6 +68,8 @@ class Preprocess(object):
         else:
             raise NotImplementedError
 
+
+        #  For training save ground truth annotations into gt_dict
         if self.mode == "train":
             anno_dict = res["lidar"]["annotations"]
 
@@ -75,45 +79,50 @@ class Preprocess(object):
                 "gt_frustums": anno_dict["frustums"],
             }
 
+            # if camera images are also used then save those information into gt_dict too
             if self.use_img:
                 cam_anno_dict = res["camera"]["annotations"]
                 gt_dict["bboxes"] = cam_anno_dict["boxes_2d"]
                 gt_dict["avail_2d"] = cam_anno_dict["avail_2d"]
                 gt_dict["depths"] = cam_anno_dict["depths"]
 
+
+        # If training + augmentation mode is on
+        # if there are objects with annotations like  ["DontCare", "ignore", "UNKNOWN"]
+        # then drop them from the gt_dict
         if self.mode == "train" and not self.no_augmentation:
-            selected = drop_arrays_by_name(
-                gt_dict["gt_names"], ["DontCare", "ignore", "UNKNOWN"]
-            )
+            selected = drop_arrays_by_name( gt_dict["gt_names"], ["DontCare", "ignore", "UNKNOWN"])
 
             _dict_select(gt_dict, selected)
 
+
+            # Check if each gt_annotation contains lidar points more than min_points_in_gt
             if self.min_points_in_gt > 0:
-                point_counts = box_np_ops.points_count_rbbox(
-                    points, gt_dict["gt_boxes"]
-                )
-                mask = point_counts >= min_points_in_gt
+                point_counts = box_np_ops.points_count_rbbox(points, gt_dict["gt_boxes"])
+                mask = point_counts >= self.min_points_in_gt
                 _dict_select(gt_dict, mask)
 
-            gt_boxes_mask = np.array(
-                [n in self.class_names for n in gt_dict["gt_names"]], dtype=np.bool_
-            )
+
+            # create a mask whether the gt_classes contains the classes for sampling(augmentation)
+            gt_boxes_mask = np.array([n in self.class_names for n in gt_dict["gt_names"]], dtype=np.bool_)
 
             if self.db_sampler:
+                # calibration parameters (dictionary) of original ground truth
+                # ref_to_global = (4,4) . ref is lidar here, global might be car
+                # cams_from_global = 6*(4,4). global (car) to cameras
+                # cam_intrinsic = (3,3). 3d to 2d projection
+
                 calib = res["calib"] if "calib" in res else None
+
+                # Pcloud features [(x,y,z,reflect,time),(proj_u,proj_v,camera_id)]
                 selected_feature = np.ones([5 + 3])  # xyzrt, u v cam_id
                 selected_feature[5:5 + 3] = 1. if self.use_img else 0.
-                sampled_dict = self.db_sampler.sample_all_v2(
-                    res["metadata"]["image_prefix"],
-                    gt_dict["gt_boxes"],
-                    gt_dict["gt_names"],
-                    gt_dict["gt_frustums"],
-                    selected_feature,
-                    random_crop=False,
-                    revise_calib=True,
-                    gt_group_ids=None,
-                    calib=calib,
-                    cam_name=res['camera']['name'],
+
+
+                sampled_dict = self.db_sampler.sample_all_v2(res["metadata"]["image_prefix"],
+                    gt_dict["gt_boxes"], gt_dict["gt_names"],gt_dict["gt_frustums"],
+                    selected_feature,random_crop=False,revise_calib=True,
+                    gt_group_ids=None,calib=calib,cam_name=res['camera']['name'],
                     road_planes=None  # res["lidar"]["ground_plane"]
                 )
 

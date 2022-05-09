@@ -5,7 +5,7 @@ All Rights Reserved 2019-2020.
 """
 import torch
 
-from . import iou3d_nms_cuda
+# from . import iou3d_nms_cuda
 import numpy as np 
 
 

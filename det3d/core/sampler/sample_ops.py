@@ -59,6 +59,14 @@ class DataBaseSamplerV2:
         global_rot_range=None,
         logger=None,
     ):
+
+        # db_infos : dictionary contains all the information from saved database
+        # groups : maximum number of objects after augmentation (original+sampled)
+        # db_prepor : instance to class where filtering by minimum number of lidar points is done
+        # rate: how much objects will be sampled among all saved in the database
+        # grot_range :  global rotation range for sample objects. I guess not implemented for now
+        # logger : To log the processing
+
         for k, v in db_infos.items():
             logger.info(f"load {len(v)} {k} database infos")
 
@@ -75,6 +83,9 @@ class DataBaseSamplerV2:
         self._group_name_to_names = []
         self._sample_classes = []
         self._sample_max_nums = []
+
+        # group sampling is not implemented here
+
         self._use_group_sampling = False  # slower
         if any([len(g) > 1 for g in groups]):
             self._use_group_sampling = True
@@ -280,20 +291,24 @@ class DataBaseSamplerV2:
             cam_name=None,
             road_planes=None,
     ):
+
+        # class-wise numbers of objects to be sampled
+
+        # sampled_num_dict = {'car': -7, 'truck': 6, 'construction_vehicle': 14,
+        # 'bus': 7, 'trailer': 12, 'barrier': 4, 'motorcycle': 12, 'bicycle': 10,
+        # 'pedestrian': -32, 'traffic_cone': 4}
+
         sampled_num_dict = {}
         sample_num_per_class = []
-        for class_name, max_sample_num in zip(
-                self._sample_classes, self._sample_max_nums
-        ):
-            sampled_num = int(
-                max_sample_num - np.sum([n == class_name for n in gt_names])
-            )
-
+        for class_name, max_sample_num in zip(self._sample_classes, self._sample_max_nums):
+            sampled_num = int(max_sample_num - np.sum([n == class_name for n in gt_names]))
             sampled_num = np.round(self._rate * sampled_num).astype(np.int64)
             sampled_num_dict[class_name] = sampled_num
             sample_num_per_class.append(sampled_num)
 
         sampled_groups = self._sample_classes
+
+        # group sampling is not implemented so skip this part
         if self._use_group_sampling:
             assert gt_group_ids is not None
             sampled_groups = []
@@ -304,14 +319,20 @@ class DataBaseSamplerV2:
                 sample_num_per_class.append(sampled_num)
                 sampled_groups.append(group_name)
             total_group_ids = gt_group_ids
+
+        # arrays to save sampled (augmented) objects
         sampled = []
         sampled_gt_boxes = []
         sampled_gt_frustums = []
         avoid_coll_boxes = gt_boxes
         avoid_coll_frustums = gt_boxes_frustum
 
+        # iterate each class with samples_num_per_class
         for class_name, sampled_num in zip(sampled_groups, sample_num_per_class):
+            # if negative or zero -> don't need to sample anything
+            # else do following
             if sampled_num > 0:
+                # group sampling not implemented here
                 if self._use_group_sampling:
                     sampled_cls = self.sample_group(
                         class_name, sampled_num, avoid_coll_boxes, total_group_ids
@@ -617,13 +638,18 @@ class DataBaseSamplerV2:
         return valid_samples
 
     def sample_class_v3(self, name, num, gt_boxes, gt_frustums):
+        # dictionary of instances of each class(e.g. car, barrier) of class BatchSampler
+        # calling .sample(num) will return the "num" number of sampled objects for a given class(car)
+        # sampled only loads the informations related to camera
+        # however it does not load the lidarpoints
+
         sampled = self._sampler_dict[name].sample(num)
         sampled = copy.deepcopy(sampled)
+
+        # number of objects present in original frame
         num_gt = gt_boxes.shape[0]
         num_sampled = len(sampled)
-        gt_boxes_bv = box_np_ops.center_to_corner_box2d(
-            gt_boxes[:, 0:2], gt_boxes[:, 3:5], gt_boxes[:, -1]
-        )
+        gt_boxes_bv = box_np_ops.center_to_corner_box2d(gt_boxes[:, 0:2], gt_boxes[:, 3:5], gt_boxes[:, -1])
 
         sp_boxes = np.stack([i["box3d_lidar"] for i in sampled], axis=0)
 
