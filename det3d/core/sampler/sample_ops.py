@@ -646,9 +646,9 @@ class DataBaseSamplerV2:
         sampled = self._sampler_dict[name].sample(num)
         sampled = copy.deepcopy(sampled)
 
-        # number of objects present in original frame
-        num_gt = gt_boxes.shape[0]
-        num_sampled = len(sampled)
+
+        num_gt = gt_boxes.shape[0] # number of objects present in original frame
+        num_sampled = len(sampled) # number of objects sampled for the given class
         gt_boxes_bv = box_np_ops.center_to_corner_box2d(gt_boxes[:, 0:2], gt_boxes[:, 3:5], gt_boxes[:, -1])
 
         sp_boxes = np.stack([i["box3d_lidar"] for i in sampled], axis=0)

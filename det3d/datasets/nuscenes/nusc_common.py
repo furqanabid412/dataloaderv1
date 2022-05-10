@@ -293,37 +293,36 @@ def _fill_trainval_infos_nosweep(nusc,train_scenes, val_scenes, test=False, filt
         # ref_chan == "LIDAR_TOP"
         ref_sd_token = sample["data"][ref_chan]
         ref_sd_rec = nusc.get("sample_data", ref_sd_token)
-        ref_cs_rec = nusc.get(
-            "calibrated_sensor", ref_sd_rec["calibrated_sensor_token"]
-        )
+        ref_cs_rec = nusc.get("calibrated_sensor", ref_sd_rec["calibrated_sensor_token"])
         ref_pose_rec = nusc.get("ego_pose", ref_sd_rec["ego_pose_token"])
         ref_time = 1e-6 * ref_sd_rec["timestamp"]
 
+        # Retrieve ref_lidar_path and
+        # all sample annotations(ref_boxes) and map to sensor coordinate system.
         ref_lidar_path, ref_boxes, _ = get_sample_data(nusc, ref_sd_token)
 
         ref_cam_tokens = {}
         for cam_sensor in cam_chan:
             ref_cam_tokens[cam_sensor] = sample["data"][cam_sensor]
 
-        # Homogeneous transform from ego car frame to reference frame
-        ref_from_car = transform_matrix(
-            ref_cs_rec["translation"], Quaternion(ref_cs_rec["rotation"]), inverse=True
-        )
-        ref_to_car = transform_matrix(
-            ref_cs_rec["translation"], Quaternion(ref_cs_rec["rotation"]), inverse=False
-        )
+
+        # There are multiple coordinate systems involved:
+        # The sensor data (i.e. the LidarPointCloud) is centered around the lidar sensor.
+        # The sensor pose with respect to the vehicle is stored in the calibrated_sensor of the sample_data.
+        # The vehicle pose in absolute/map coordinates is stored in the ego_pose of the sample_data.
+
+        # so, we need to transform from
+        # sensor(Lidar) ---------> vehicle(car) ---------> global(map)
+
+        # Homogeneous transform from ego car frame to reference frame (Lidar)
+        ref_from_car = transform_matrix(ref_cs_rec["translation"], Quaternion(ref_cs_rec["rotation"]), inverse=True)
+        ref_to_car = transform_matrix(ref_cs_rec["translation"], Quaternion(ref_cs_rec["rotation"]), inverse=False)
 
         # Homogeneous transformation matrix from global to _current_ ego car frame
-        car_from_global = transform_matrix(
-            ref_pose_rec["translation"],
-            Quaternion(ref_pose_rec["rotation"]),
-            inverse=True,
-        )
-        car_to_global = transform_matrix(
-            ref_pose_rec["translation"],
-            Quaternion(ref_pose_rec["rotation"]),
-            inverse=False,
-        )
+        car_from_global = transform_matrix(ref_pose_rec["translation"],Quaternion(ref_pose_rec["rotation"]),inverse=True,)
+        car_to_global = transform_matrix(ref_pose_rec["translation"],Quaternion(ref_pose_rec["rotation"]),inverse=False,)
+
+        # ref(Lidar) ---------> global(map)
         ref_to_global = reduce(np.dot, [car_to_global, ref_to_car])
 
         ref_cam_paths = {}
@@ -334,27 +333,15 @@ def _fill_trainval_infos_nosweep(nusc,train_scenes, val_scenes, test=False, filt
         for cam_sensor in cam_chan:
             cam_token = ref_cam_tokens[cam_sensor]
             ref_cam = nusc.get("sample_data", cam_token)
-            ref_cam_cs = nusc.get(
-                "calibrated_sensor", ref_cam["calibrated_sensor_token"]
-            )
+            ref_cam_cs = nusc.get("calibrated_sensor", ref_cam["calibrated_sensor_token"])
             ref_cam_pose = nusc.get("ego_pose", ref_cam["ego_pose_token"])
 
-            ref_cam_path, img_boxes, ref_cam_intrinsic = nusc.get_sample_data(cam_token,
-                                                                              box_vis_level=BoxVisibility.ANY)
+            ref_cam_path, img_boxes, ref_cam_intrinsic = nusc.get_sample_data(cam_token,box_vis_level=BoxVisibility.ANY)
             # car to cam transform
-            cam_from_car = transform_matrix(
-                ref_cam_cs["translation"], Quaternion(ref_cam_cs["rotation"]), inverse=True
-            )
-            cam_car_from_global = transform_matrix(
-                ref_cam_pose["translation"],
-                Quaternion(ref_cam_pose["rotation"]),
-                inverse=True,
-            )
-
-            cam_from_global = reduce(
-                np.dot,
-                [cam_from_car, cam_car_from_global]
-            )
+            cam_from_car = transform_matrix(ref_cam_cs["translation"], Quaternion(ref_cam_cs["rotation"]), inverse=True)
+            cam_car_from_global = transform_matrix(ref_cam_pose["translation"],Quaternion(ref_cam_pose["rotation"]),inverse=True,)
+            # sensor(camera) ---------> vehicle(car) ---------> global(map)
+            cam_from_global = reduce(np.dot,[cam_from_car, cam_car_from_global])
 
             ref_cam_paths[cam_sensor] = ref_cam_path
             ref_cam_intrinsics[cam_sensor] = ref_cam_intrinsic
@@ -365,13 +352,11 @@ def _fill_trainval_infos_nosweep(nusc,train_scenes, val_scenes, test=False, filt
                 import copy
                 for img_box in img_boxes:
                     img_box.translate(np.array([0, img_box.wlh[2] / 2, 0]))
-                    bbox, imcorners = KittiDB.project_kitti_box_to_image(
-                        copy.deepcopy(img_box), ref_cam_intrinsic, imsize=(1600, 900))
+                    bbox, imcorners = KittiDB.project_kitti_box_to_image(copy.deepcopy(img_box), ref_cam_intrinsic, imsize=(1600, 900))
                     bbox = np.array([bbox[0], bbox[1], bbox[2], bbox[3]])
                     imcorners = np.array(imcorners)
                     if img_box.token not in img_boxes_dict:
-                        img_boxes_dict[img_box.token] = [
-                            {'bbox': bbox, "imcorners": imcorners, 'cam_sensor': cam_sensor,
+                        img_boxes_dict[img_box.token] = [{'bbox': bbox, "imcorners": imcorners, 'cam_sensor': cam_sensor,
                              "depth": img_box.center[2]}]
                     else:
                         img_boxes_dict[img_box.token].append(
