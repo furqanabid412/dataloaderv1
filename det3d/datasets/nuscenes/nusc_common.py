@@ -298,7 +298,7 @@ def _fill_trainval_infos_nosweep(nusc,train_scenes, val_scenes, test=False, filt
         ref_time = 1e-6 * ref_sd_rec["timestamp"]
 
         # Retrieve ref_lidar_path and
-        # all sample annotations(ref_boxes) and map to sensor coordinate system.
+        # all sample annotations(ref_boxes) and map to sensor(lidar) coordinate system.
         ref_lidar_path, ref_boxes, _ = get_sample_data(nusc, ref_sd_token)
 
         ref_cam_tokens = {}
@@ -310,6 +310,8 @@ def _fill_trainval_infos_nosweep(nusc,train_scenes, val_scenes, test=False, filt
         # The sensor data (i.e. the LidarPointCloud) is centered around the lidar sensor.
         # The sensor pose with respect to the vehicle is stored in the calibrated_sensor of the sample_data.
         # The vehicle pose in absolute/map coordinates is stored in the ego_pose of the sample_data.
+        # reference : https://github.com/nutonomy/nuscenes-devkit/issues/528
+
 
         # so, we need to transform from
         # sensor(Lidar) ---------> vehicle(car) ---------> global(map)
@@ -336,6 +338,8 @@ def _fill_trainval_infos_nosweep(nusc,train_scenes, val_scenes, test=False, filt
             ref_cam_cs = nusc.get("calibrated_sensor", ref_cam["calibrated_sensor_token"])
             ref_cam_pose = nusc.get("ego_pose", ref_cam["ego_pose_token"])
 
+            # Retrieve ref_cam_path and
+            # all sample annotations(img_boxes) and map to sensor(but 3D) coordinate system.
             ref_cam_path, img_boxes, ref_cam_intrinsic = nusc.get_sample_data(cam_token,box_vis_level=BoxVisibility.ANY)
             # car to cam transform
             cam_from_car = transform_matrix(ref_cam_cs["translation"], Quaternion(ref_cam_cs["rotation"]), inverse=True)
@@ -351,10 +355,16 @@ def _fill_trainval_infos_nosweep(nusc,train_scenes, val_scenes, test=False, filt
                 from det3d.utils.utils_kitti import KittiDB
                 import copy
                 for img_box in img_boxes:
+
+                    # Adjusting the center to the bottom center of the object by translating by h/2 in y direction.
                     img_box.translate(np.array([0, img_box.wlh[2] / 2, 0]))
                     bbox, imcorners = KittiDB.project_kitti_box_to_image(copy.deepcopy(img_box), ref_cam_intrinsic, imsize=(1600, 900))
-                    bbox = np.array([bbox[0], bbox[1], bbox[2], bbox[3]])
+                    # bbox = (xmin, ymin, xmax, ymax).Boundingbox in image plane or None if box is not in the image.
+                    bbox = np.array([bbox[0], bbox[1], bbox[2], bbox[3]]) # converting tuple to numpy
+                    # one thing to notice here : img_box.corners() are the 3d corners of objects i.e. 3*8 matrix
+                    # while imcorners are 2*8 projections of 3d corners on camera
                     imcorners = np.array(imcorners)
+
                     if img_box.token not in img_boxes_dict:
                         img_boxes_dict[img_box.token] = [{'bbox': bbox, "imcorners": imcorners, 'cam_sensor': cam_sensor,
                              "depth": img_box.center[2]}]
@@ -363,11 +373,12 @@ def _fill_trainval_infos_nosweep(nusc,train_scenes, val_scenes, test=False, filt
                             {'bbox': bbox, "imcorners": imcorners, 'cam_sensor': cam_sensor,
                              "depth": img_box.center[2]})
 
-        # add the lidarseg_labels {2/5}
 
+        # add lidarseg information too
         ref_lidarseg = nusc.get("lidarseg", ref_sd_token)
         ref_lidarseg['filename'] = osp.join(nusc.dataroot, ref_lidarseg['filename'])
 
+        # saving the info in a dictionary
         info = {
             "lidar_path": ref_lidar_path,
             "cam_paths": ref_cam_paths,
@@ -385,26 +396,21 @@ def _fill_trainval_infos_nosweep(nusc,train_scenes, val_scenes, test=False, filt
         curr_sd_rec = nusc.get("sample_data", sample_data_token)
 
         if not test:
-            annotations = [
-                nusc.get("sample_annotation", token) for token in sample["anns"]
-            ]
-
-            mask = np.array([(anno['num_lidar_pts'] + anno['num_radar_pts']) > 0 for anno in annotations],
-                            dtype=bool).reshape(-1)
-
-
-            locs = np.array([b.center for b in ref_boxes]).reshape(-1, 3)
-            dims = np.array([b.wlh for b in ref_boxes]).reshape(-1, 3)
+            # get list of all the annotations in the current sample
+            annotations = [nusc.get("sample_annotation", token) for token in sample["anns"]]
+            # getting the mask with annotations
+            mask = np.array([(anno['num_lidar_pts'] + anno['num_radar_pts']) > 0 for anno in annotations], dtype=bool).reshape(-1)
+            # Here just we are saving the informations so lidar_points + radar_points > 0 are fine.
+            # Later, during the dataloading we will deal with it again.
+            # So, just keep it as it.
+            locs = np.array([b.center for b in ref_boxes]).reshape(-1, 3)  # (annotations,3) =center locations (x,y,z) of annotations in the ref lidar frame
+            dims = np.array([b.wlh for b in ref_boxes]).reshape(-1, 3) # (annotations,3) = (w,l,h)
             # rots = np.array([b.orientation.yaw_pitch_roll[0] for b in ref_boxes]).reshape(-1, 1)
-            velocity = np.array([b.velocity for b in ref_boxes]).reshape(-1, 3)
-            rots = np.array([quaternion_yaw(b.orientation) for b in ref_boxes]).reshape(
-                -1, 1
-            )
+            velocity = np.array([b.velocity for b in ref_boxes]).reshape(-1, 3)# (annotations,3) = (vx,vy,vz)
+            rots = np.array([quaternion_yaw(b.orientation) for b in ref_boxes]).reshape(-1, 1)# (annotations,1) = yaw rotation (along z axis maybe)
             names = np.array([b.name for b in ref_boxes])
             tokens = np.array([b.token for b in ref_boxes])
-            gt_boxes = np.concatenate(
-                [locs, dims, velocity[:, :2], -rots - np.pi / 2], axis=1
-            )
+            gt_boxes = np.concatenate([locs, dims, velocity[:, :2], -rots - np.pi / 2], axis=1)# gt_boxes = (x,y,z,w,l,h,vx,vy,-yaw-(pi/2))
             # gt_boxes = np.concatenate([locs, dims, rots], axis=1)
 
             assert len(annotations) == len(gt_boxes) == len(velocity)
@@ -413,11 +419,12 @@ def _fill_trainval_infos_nosweep(nusc,train_scenes, val_scenes, test=False, filt
             from det3d.core.bbox import box_np_ops
             from det3d.datasets.utils.cross_modal_augmentation import transform2Spherical
             num_box = gt_boxes.shape[0]
-            gt_box_corners = box_np_ops.center_to_corner_box3d(
-                gt_boxes[:, :3], gt_boxes[:, 3:6], gt_boxes[:, -1], ).reshape(-1, 3)  # N * 8 * 3 - (N*8)*3
+            # get 8 corners(x,y,z) of gt_boxes -> N*8*3 -> reshaping to (N*8)*3
+            gt_box_corners = box_np_ops.center_to_corner_box3d(gt_boxes[:, :3], gt_boxes[:, 3:6], gt_boxes[:, -1], ).reshape(-1, 3)  # N * 8 * 3 - (N*8)*3
 
+            #  x,y,z to r, theta, pi ----------> (N*8)*3 -> (N*8)*3
             pts_rr = transform2Spherical(gt_box_corners)
-            pts_rr = pts_rr.reshape(num_box, 8, 3)
+            pts_rr = pts_rr.reshape(num_box, 8, 3) # (N*8)*3 -> N*8*3
 
             gt_frustum = np.ones([num_box, 3, 2, 2], dtype=np.float32) * -1  # N * (r, phi, theta) * (min, max) * 2
             gt_frustum[:, :, :, 0] = np.stack([pts_rr.min(axis=1), pts_rr.max(axis=1)], axis=2)
@@ -435,12 +442,12 @@ def _fill_trainval_infos_nosweep(nusc,train_scenes, val_scenes, test=False, filt
             boxes_2d = np.ones([tokens.shape[0], 6, 4]).astype(np.float32) * -1
             depths = np.zeros([tokens.shape[0], 6]).astype(np.float32)
 
+            # check whether all annotations in 3d have 2d annotations as well
             for ids, b in enumerate(ref_boxes):
                 if b.token in img_boxes_dict:
                     for img_id, cur_box in enumerate(img_boxes_dict[b.token]):
-                        # special case, box width or height < 1
-                        if (cur_box['bbox'][2] - cur_box['bbox'][0]) < 1. or (
-                                cur_box['bbox'][3] - cur_box['bbox'][1]) < 1.:
+                        # special case, box width or height < 1 in image coordinates
+                        if (cur_box['bbox'][2] - cur_box['bbox'][0]) < 1. or (cur_box['bbox'][3] - cur_box['bbox'][1]) < 1.:
                             print('invalid box: height or width < 1')
                             continue
                         cam_id = CAM_SENSOR_DICT[cur_box['cam_sensor']]
@@ -458,6 +465,7 @@ def _fill_trainval_infos_nosweep(nusc,train_scenes, val_scenes, test=False, filt
                 info["boxes_2d"] = boxes_2d
                 info["depths"] = depths
             else:
+                # apply mask with no.of lidar points + no. of radar points > 1
                 info["gt_boxes"] = gt_boxes[mask, :]
                 info["gt_boxes_velocity"] = velocity[mask, :]
                 info["gt_names"] = np.array([general_to_detection[name] for name in names])[mask]
