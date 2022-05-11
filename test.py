@@ -1,132 +1,73 @@
-def sample_all(
-        self,
-        root_path,
-        gt_boxes,
-        gt_names,
-        num_point_features,
-        random_crop=False,
-        gt_group_ids=None,
-        calib=None,
-        road_planes=None,
-):
-    sampled_num_dict = {}
-    sample_num_per_class = []
-    for class_name, max_sample_num in zip(
-            self._sample_classes, self._sample_max_nums
-    ):
-        sampled_num = int(
-            max_sample_num - np.sum([n == class_name for n in gt_names])
-        )
+import numpy as np
+import pickle
 
-        sampled_num = np.round(self._rate * sampled_num).astype(np.int64)
-        sampled_num_dict[class_name] = sampled_num
-        sample_num_per_class.append(sampled_num)
+from pathlib import Path
+from functools import reduce
+from typing import List
+import os.path as osp
+import os
+from PIL import Image
+from torch.utils.data import Dataset
+import yaml
+# import open3d
+from tqdm import tqdm
+from pyquaternion import Quaternion
+import matplotlib.pyplot as plt
 
-    sampled_groups = self._sample_classes
-    if self._use_group_sampling:
-        assert gt_group_ids is not None
-        sampled_groups = []
-        sample_num_per_class = []
-        for group_name, class_names in self._group_name_to_names:
-            sampled_nums_group = [sampled_num_dict[n] for n in class_names]
-            sampled_num = np.max(sampled_nums_group)
-            sample_num_per_class.append(sampled_num)
-            sampled_groups.append(group_name)
-        total_group_ids = gt_group_ids
-    sampled = []
-    sampled_gt_boxes = []
-    avoid_coll_boxes = gt_boxes
+try:
+    from nuscenes import NuScenes,NuScenesExplorer
+    from nuscenes.utils import splits
+    from nuscenes.utils.data_io import load_bin_file, panoptic_to_lidarseg
+    from nuscenes.utils.data_classes import LidarPointCloud
+    from nuscenes.lidarseg.lidarseg_utils import colormap_to_colors, plt_to_cv2, get_stats, \
+        get_labels_in_coloring, create_lidarseg_legend, paint_points_label
+    from nuscenes.utils.geometry_utils import transform_matrix, BoxVisibility
+    from nuscenes.utils.data_classes import Box
+    from nuscenes.eval.detection.config import config_factory
+    from nuscenes.eval.detection.evaluate import NuScenesEval
+except:
+    print("nuScenes devkit not Found!")
 
-    for class_name, sampled_num in zip(sampled_groups, sample_num_per_class):
-        if sampled_num > 0:
-            if self._use_group_sampling:
-                sampled_cls = self.sample_group(
-                    class_name, sampled_num, avoid_coll_boxes, total_group_ids
-                )
-            else:
-                sampled_cls = self.sample_class_v2(
-                    class_name, sampled_num, avoid_coll_boxes
-                )
 
-            sampled += sampled_cls
-            if len(sampled_cls) > 0:
-                if len(sampled_cls) == 1:
-                    sampled_gt_box = sampled_cls[0]["box3d_lidar"][np.newaxis, ...]
-                else:
-                    sampled_gt_box = np.stack(
-                        [s["box3d_lidar"] for s in sampled_cls], axis=0
-                    )
+color_map:{ # RGB values for each class
+  0: [0,0,0],
+  1: [70,130,180],
+  2: [0,0,230],
+  3: [135,206,235],
+  4: [100,149,237],
+  5: [219,112,147],
+  6: [0,0,128],
+  7: [240,128,128],
+  8: [138,43,226],
+  9: [112,128,144],
+  10: [210,105,30],
+  11: [105,105,105],
+  12: [47,79,79],
+  13: [188,143,143],
+  14: [220,20,60],
+  15: [255,127,80],
+  16: [255,69,0],
+  17: [255,158,0],
+  18: [233,150,70],
+  19: [255,83,0],
+  20: [255,215,0],
+  21: [255,61,99],
+  22: [255,140,0],
+  23: [255,99,71],
+  24: [0,207,191],
+  25: [175,0,75],
+  26: [75,0,75],
+  27: [112,180,60],
+  28: [222,184,135],
+  29: [255,228,196],
+  30: [0,175,0],
+  31: [255,240,245],
+}
 
-                sampled_gt_boxes += [sampled_gt_box]
-                avoid_coll_boxes = np.concatenate(
-                    [avoid_coll_boxes, sampled_gt_box], axis=0
-                )
-                if self._use_group_sampling:
-                    if len(sampled_cls) == 1:
-                        sampled_group_ids = np.array(sampled_cls[0]["group_id"])[
-                            np.newaxis, ...
-                        ]
-                    else:
-                        sampled_group_ids = np.stack(
-                            [s["group_id"] for s in sampled_cls], axis=0
-                        )
-                    total_group_ids = np.concatenate(
-                        [total_group_ids, sampled_group_ids], axis=0
-                    )
 
-    if len(sampled) > 0:
-        sampled_gt_boxes = np.concatenate(sampled_gt_boxes, axis=0)
+root =  'E:/Datasets/NuScenes/new_test_run/v1.0-mini'
+version =  'v1.0-mini'
+nusc = NuScenes(version=version,dataroot=root,verbose=True)
 
-        num_sampled = len(sampled)
-        s_points_list = []
-        for info in sampled:
-            try:
-                s_points = np.fromfile(
-                    str(pathlib.Path(root_path) / info["path"]), dtype=np.float32
-                ).reshape(-1, num_point_features)
+curr_sample = nusc.sample[0]
 
-                if "rot_transform" in info:
-                    rot = info["rot_transform"]
-                    s_points[:, :3] = box_np_ops.rotation_points_single_angle(
-                        s_points[:, :4], rot, axis=2
-                    )
-                s_points[:, :3] += info["box3d_lidar"][:3]
-                s_points_list.append(s_points)
-                # print(pathlib.Path(info["path"]).stem)
-            except Exception:
-                print(str(pathlib.Path(root_path) / info["path"]))
-                continue
-        if random_crop:
-            s_points_list_new = []
-            assert calib is not None
-            rect = calib["rect"]
-            Trv2c = calib["Trv2c"]
-            P2 = calib["P2"]
-            gt_bboxes = box_np_ops.box3d_to_bbox(sampled_gt_boxes, rect, Trv2c, P2)
-            crop_frustums = prep.random_crop_frustum(gt_bboxes, rect, Trv2c, P2)
-            for i in range(crop_frustums.shape[0]):
-                s_points = s_points_list[i]
-                mask = prep.mask_points_in_corners(
-                    s_points, crop_frustums[i: i + 1]
-                ).reshape(-1)
-                num_remove = np.sum(mask)
-                if num_remove > 0 and (s_points.shape[0] - num_remove) > 15:
-                    s_points = s_points[np.logical_not(mask)]
-                s_points_list_new.append(s_points)
-            s_points_list = s_points_list_new
-        ret = {
-            "gt_names": np.array([s["name"] for s in sampled]),
-            "difficulty": np.array([s["difficulty"] for s in sampled]),
-            "gt_boxes": sampled_gt_boxes,
-            "points": np.concatenate(s_points_list, axis=0),
-            "gt_masks": np.ones((num_sampled,), dtype=np.bool_),
-        }
-        if self._use_group_sampling:
-            ret["group_ids"] = np.array([s["group_id"] for s in sampled])
-        else:
-            ret["group_ids"] = np.arange(
-                gt_boxes.shape[0], gt_boxes.shape[0] + len(sampled)
-            )
-    else:
-        ret = None
-    return ret

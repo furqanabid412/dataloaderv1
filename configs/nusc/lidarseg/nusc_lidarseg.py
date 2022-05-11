@@ -176,6 +176,7 @@ train_preprocessor = dict(
     class_names=class_names,
     use_img=use_img,
     remove_points_after_sample=True,  # False
+    doLidarSegmentation = True,
 )
 
 val_preprocessor = dict(

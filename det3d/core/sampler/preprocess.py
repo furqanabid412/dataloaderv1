@@ -857,19 +857,16 @@ def box_collision_test(boxes, qboxes, clockwise=True):
     K = qboxes.shape[0]
     ret = np.zeros((N, K), dtype=np.bool_)
     slices = np.array([1, 2, 3, 0])
-    lines_boxes = np.stack(
-        (boxes, boxes[:, slices, :]), axis=2
-    )  # [N, 4, 2(line), 2(xy)]
+    lines_boxes = np.stack((boxes, boxes[:, slices, :]), axis=2)  # [N, 4, 2(line), 2(xy)]
     lines_qboxes = np.stack((qboxes, qboxes[:, slices, :]), axis=2)
     # vec = np.zeros((2,), dtype=boxes.dtype)
+    # corner_to_standup -> boxes(n,4,2) ------> boxes_standup()
     boxes_standup = box_np_ops.corner_to_standup_nd_jit(boxes)
     qboxes_standup = box_np_ops.corner_to_standup_nd_jit(qboxes)
     for i in range(N):
         for j in range(K):
             # calculate standup first
-            iw = min(boxes_standup[i, 2], qboxes_standup[j, 2]) - max(
-                boxes_standup[i, 0], qboxes_standup[j, 0]
-            )
+            iw = min(boxes_standup[i, 2], qboxes_standup[j, 2]) - max(boxes_standup[i, 0], qboxes_standup[j, 0])
             if iw > 0:
                 ih = min(boxes_standup[i, 3], qboxes_standup[j, 3]) - max(
                     boxes_standup[i, 1], qboxes_standup[j, 1]

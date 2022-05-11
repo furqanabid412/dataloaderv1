@@ -49,8 +49,8 @@ class Preprocess(object):
             self.npoints = cfg.get("npoints", -1)
 
         self.no_augmentation = cfg.get('no_augmentation', False)
-
         self.use_img = cfg.get("use_img", False)
+        self.doLidarSegmentation=cfg.doLidarSegmentation
 
     def __call__(self, res, info):
 
@@ -115,7 +115,10 @@ class Preprocess(object):
                 calib = res["calib"] if "calib" in res else None
 
                 # Pcloud features [(x,y,z,reflect,time),(proj_u,proj_v,camera_id)]
-                selected_feature = np.ones([5 + 3])  # xyzrt, u v cam_id
+                pt_features=5+3
+                if self.doLidarSegmentation:
+                    pt_features+=1
+                selected_feature = np.ones([pt_features])  # xyzrt, u v cam_id
                 selected_feature[5:5 + 3] = 1. if self.use_img else 0.
 
 
@@ -123,7 +126,8 @@ class Preprocess(object):
                     gt_dict["gt_boxes"], gt_dict["gt_names"],gt_dict["gt_frustums"],
                     selected_feature,random_crop=False,revise_calib=True,
                     gt_group_ids=None,calib=calib,cam_name=res['camera']['name'],
-                    road_planes=None  # res["lidar"]["ground_plane"]
+                    road_planes=None,  # res["lidar"]["ground_plane"]
+                    doLidarSegmentation=self.doLidarSegmentation
                 )
 
                 if sampled_dict is not None:

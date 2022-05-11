@@ -174,6 +174,7 @@ def create_groundtruth_database(
 
                 # save pts
                 filename = f"{image_idx}_{names[i]}_{i}.bin"
+                lidar_filename = filename
                 filepath = os.path.join(str(db_path), names[i], filename)
                 gt_points = points[point_indices[:, i]]
                 gt_points[:, :3] -= gt_boxes[i, :3]
@@ -217,9 +218,9 @@ def create_groundtruth_database(
 
             if (used_classes is None) or names[i] in used_classes:
                 if relative_path:
-                    db_dump_path = os.path.join(db_path.stem, names[i], filename)
+                    db_dump_path = os.path.join(db_path.stem, names[i], lidar_filename)
                 else:
-                    db_dump_path = str(filepath)
+                    db_dump_path = str(lidar_filename)
 
                 db_info = {
                     "name": names[i],

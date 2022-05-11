@@ -9,7 +9,19 @@ from det3d.core.bbox import box_np_ops
 from det3d.core.sampler import preprocess as prep
 from det3d.utils.check import shape_mergeable
 
+
+
 def corners_to_bbox(info, corners, cam_name, calib, imsize=(900, 1600)):
+
+    # initially the point corners are in ref frame i.e. lidar frame
+    # step 1: lidar to global
+    # step 2: global to camera (but 3d)
+    # step 3: camera to 2d uv frame using cam_intrinsics [8,3] with last column is 1
+    # step 4: uv to bounding box [min(u),min(v),max(u),max(v)]
+    # step 5: limiting the bbox to image height and width i,e, withing [0,L] and [0,W]
+    # step 6: get the scale based on modified bbox and original bbox
+
+
     avail_new = info['avail_2d'].copy()
     bboxes_new = np.zeros([6, 4], dtype=np.int32)
     scale = np.zeros([6, 2], dtype=np.float32)
@@ -43,6 +55,8 @@ def corners_to_bbox(info, corners, cam_name, calib, imsize=(900, 1600)):
                 bboxes_new[cam_id] = bbox.copy()
                 # transform[cam_id, 0] = (bbox[0] + bbox[2] - info['bbox'][0] - info['bbox'][2]) / 2.
                 # transform[cam_id, 1] = (bbox[1] + bbox[3] - info['bbox'][1] - info['bbox'][3]) / 2.
+
+                # scale
                 scale[cam_id, 0] = (bbox[2] - bbox[0]) / (info['bbox'][cam_id, 2] - info['bbox'][cam_id, 0])
                 scale[cam_id, 1] = (bbox[3] - bbox[1]) / (info['bbox'][cam_id, 3] - info['bbox'][cam_id, 1])
 
@@ -290,6 +304,7 @@ class DataBaseSamplerV2:
             calib=None,
             cam_name=None,
             road_planes=None,
+            doLidarSegmentation = False,
     ):
 
         # class-wise numbers of objects to be sampled
@@ -341,9 +356,7 @@ class DataBaseSamplerV2:
                     # sampled_cls = self.sample_class_v2(
                     #     class_name, sampled_num, avoid_coll_boxes,
                     # )
-                    sampled_cls = self.sample_class_v3(
-                        class_name, sampled_num, avoid_coll_boxes, avoid_coll_frustums
-                    )
+                    sampled_cls = self.sample_class_v3(class_name, sampled_num, avoid_coll_boxes, avoid_coll_frustums)
 
                 sampled += sampled_cls
                 if len(sampled_cls) > 0:
@@ -351,18 +364,16 @@ class DataBaseSamplerV2:
                         sampled_gt_box = sampled_cls[0]["box3d_lidar"][np.newaxis, ...]
                         sampled_gt_frustum = sampled_cls[0]["frustum"][np.newaxis, ...]
                     else:
-                        sampled_gt_box = np.stack(
-                            [s["box3d_lidar"] for s in sampled_cls], axis=0
-                        )
-                        sampled_gt_frustum = np.stack(
-                            [s["frustum"] for s in sampled_cls], axis=0
-                        )
+                        sampled_gt_box = np.stack([s["box3d_lidar"] for s in sampled_cls], axis=0)
+                        sampled_gt_frustum = np.stack([s["frustum"] for s in sampled_cls], axis=0)
 
                     sampled_gt_boxes += [sampled_gt_box]
                     sampled_gt_frustums += [sampled_gt_frustum]
                     avoid_coll_boxes = np.concatenate([avoid_coll_boxes, sampled_gt_box], axis=0)
                     avoid_coll_frustums = np.concatenate([avoid_coll_frustums, sampled_gt_frustum], axis=0)
 
+
+                    # not implemeneted here
                     if self._use_group_sampling:
                         if len(sampled_cls) == 1:
                             sampled_group_ids = np.array(sampled_cls[0]["group_id"])[
@@ -384,6 +395,7 @@ class DataBaseSamplerV2:
             sampled_corners = box_np_ops.center_to_corner_box3d(sampled_gt_boxes[:, :3], sampled_gt_boxes[:, 3:6],
                                                                 sampled_gt_boxes[:, -1])
 
+            # not implemented
             if road_planes is not None:
                 # Only support KITTI
                 # image plane
@@ -399,29 +411,37 @@ class DataBaseSamplerV2:
                 lidar_tmp_point = box_np_ops.camera_to_lidar(center_cam, calib["rect"], calib["Trv2c"])
                 cur_lidar_height = lidar_tmp_point[:, 2]
 
-                # botom to middle center
+                # bottom to middle center
                 # kitti [0.5, 0.5, 0] center to [0.5, 0.5, 0.5]
                 sampled_gt_boxes[:, 2] = cur_lidar_height + sampled_gt_boxes[:, 5] / 2
 
                 # mv_height = sampled_gt_boxes[:, 2] - cur_lidar_height
                 # sampled_gt_boxes[:, 2] -= mv_height
 
+            pt_features=5+3
+            if doLidarSegmentation:
+                pt_features+=1
+
             num_sampled = len(sampled)
             s_points_list = []
+
+            # iterating over all the sampled gt
+            # step1 : load corresponding pointcloud
+            # step2 : Translate loaded pcloud(sampled) to box3d_lidar
+            # step3 :
+
             for i, info in enumerate(sampled):
                 try:
                     # TODO fix point read error
-                    s_points = np.fromfile(
-                        str(pathlib.Path(root_path) / info["path"]), dtype=np.float32
-                    )
-                    s_points = s_points.reshape(-1, 5 + 3)[:, selected_feature > 0.]
+                    # loading the point clouds of samples
+                    s_points = np.fromfile(str(pathlib.Path(root_path) / info["path"]), dtype=np.float32)
+                    s_points = s_points.reshape(-1, pt_features)[:, selected_feature > 0.]
                     # if not add_rgb_to_points:
                     #     s_points = s_points[:, :4]
                     if "rot_transform" in info:
                         rot = info["rot_transform"]
-                        s_points[:, :3] = box_np_ops.rotation_points_single_angle(
-                            s_points[:, :4], rot, axis=2
-                        )
+                        s_points[:, :3] = box_np_ops.rotation_points_single_angle(s_points[:, :4], rot, axis=2)
+                    # translating the sampled point cloud to the box_3d_lidar coordinates
                     s_points[:, :3] += info["box3d_lidar"][:3]
 
                     # print(pathlib.Path(info["path"]).stem)
@@ -429,14 +449,18 @@ class DataBaseSamplerV2:
                     print(str(pathlib.Path(root_path) / info["path"]), 'error')
                     continue
 
+
                 if revise_calib and calib is not None:
                     im_shape = (448*2, 1600)
                     # update bbox and pts
+                    # we need to get the new bounding box for all 6 cameras
+                    # also if the object is not within the range of image then its removed
                     avail_new, bboxes_new, scale = corners_to_bbox(info, sampled_corners[i], cam_name, calib, im_shape)
+                    # xor = 1 if the new and original availabilty of gt is changed
                     changed_ids = np.logical_xor(avail_new, info['avail_2d'])
                     changed_ids = np.where(changed_ids)[0]
                     changed_ids = changed_ids / (6 - 1) * 2 - 1
-                    # 原来有cam现在没有的->投影点cam_id设为无穷大
+                    # Originally there is a cam but now there is no -> the projection point cam_id is set to infinity
                     for changed_id in changed_ids:
                         s_points[s_points[:, -1] == changed_id, -1] = -41
                     update_ids = np.where(avail_new)[0]
@@ -638,6 +662,10 @@ class DataBaseSamplerV2:
         return valid_samples
 
     def sample_class_v3(self, name, num, gt_boxes, gt_frustums):
+
+        # gt_boxes = N*9 where 9 features are (x,y,z,w,l,h,vx,vy,-yaw-(pi/2))
+        # gt_frustums = N*3*2*2 = N * (r, phi, theta) * (min, max) * 2
+
         # dictionary of instances of each class(e.g. car, barrier) of class BatchSampler
         # calling .sample(num) will return the "num" number of sampled objects for a given class(car)
         # sampled only loads the informations related to camera
@@ -649,31 +677,34 @@ class DataBaseSamplerV2:
 
         num_gt = gt_boxes.shape[0] # number of objects present in original frame
         num_sampled = len(sampled) # number of objects sampled for the given class
+        # get the image corners of the gt_boxes i.e. gt_boxes_bv --> (N,4(corners), 2(x,y))
         gt_boxes_bv = box_np_ops.center_to_corner_box2d(gt_boxes[:, 0:2], gt_boxes[:, 3:5], gt_boxes[:, -1])
 
+        # stack the sampled boxes for the given class -> (n,9) where 9 features are (x,y,z,w,l,h,vx,vy,-yaw-(pi/2))
         sp_boxes = np.stack([i["box3d_lidar"] for i in sampled], axis=0)
 
         valid_mask = np.zeros([gt_boxes.shape[0]], dtype=np.bool_)
-        valid_mask = np.concatenate(
-            [valid_mask, np.ones([sp_boxes.shape[0]], dtype=np.bool_)], axis=0
-        )
+        valid_mask = np.concatenate([valid_mask, np.ones([sp_boxes.shape[0]], dtype=np.bool_)], axis=0)
+
+        # concatenating the gt_boxes of original frame + current class sampled sp_boxes
         boxes = np.concatenate([gt_boxes, sp_boxes], axis=0).copy()
+
+        # _enable_global_rot = not implemented here
         if self._enable_global_rot:
             # place samples to any place in a circle.
-            prep.noise_per_object_v3_(
-                boxes, None, valid_mask, 0, 0, self._global_rot_range, num_try=100
-            )
+            prep.noise_per_object_v3_(boxes, None, valid_mask, 0, 0, self._global_rot_range, num_try=100)
 
         sp_boxes_new = boxes[gt_boxes.shape[0]:]
-        sp_boxes_bv = box_np_ops.center_to_corner_box2d(
-            sp_boxes_new[:, 0:2], sp_boxes_new[:, 3:5], sp_boxes_new[:, -1]
-        )
+        sp_boxes_bv = box_np_ops.center_to_corner_box2d(sp_boxes_new[:, 0:2], sp_boxes_new[:, 3:5], sp_boxes_new[:, -1])
 
+        # get the image corners of the gt_boxes+sp_boxes i.e. total_bv --> (N+n,4(corners), 2(x,y))
         total_bv = np.concatenate([gt_boxes_bv, sp_boxes_bv], axis=0)
         # coll_mat = collision_test_allbox(total_bv)
+        # returns the collision matrix with (N,M) where N=dim of first input , M=dim of second input
         coll_mat = prep.box_collision_test(total_bv, total_bv)
-
         sp_frustums = np.stack([i["frustum"] for i in sampled], axis=0)
+
+        # returns (N+n,N+n) collision matrix
         frustum_coll_mat = self.frustum_collision_test(gt_frustums, sp_frustums)
         coll_mat = np.logical_or(coll_mat, frustum_coll_mat)
 
@@ -682,6 +713,7 @@ class DataBaseSamplerV2:
 
         valid_samples = []
         for i in range(num_gt, num_gt + num_sampled):
+            # If there is no collision then add those samples to valid samples
             if coll_mat[i].any():
                 coll_mat[i] = False
                 coll_mat[:, i] = False
