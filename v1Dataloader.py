@@ -11,6 +11,10 @@ from det3d.torchie.parallel import collate, collate_kitti
 import warnings
 warnings.filterwarnings("ignore")
 
+from tools.visualization import show_pts_in_box
+import open3d
+
+
 import time
 
 def example_to_device(example, device, non_blocking=False) -> dict:
@@ -45,6 +49,24 @@ def example_to_device(example, device, non_blocking=False) -> dict:
     return example_torch
 
 
+def visualize_pcloud(scan_points,scan_labels):
+    import yaml
+    label_colormap = yaml.safe_load(open('colormap.yaml', 'r'))
+    # rendering the pcloud in open3d
+    pcd = open3d.geometry.PointCloud()
+    # scan_points = scan_points.numpy()
+    scan_points = scan_points[:,:2]
+    pcd.points = open3d.utility.Vector3dVector(scan_points)
+    # scan_labels = scan_labels.numpy()
+    scan_labels = scan_labels[scan_labels != -1]
+    colors = np.array([label_colormap[x] for x in scan_labels])
+    pcd.colors = open3d.utility.Vector3dVector(colors / 255.0)
+    vis = open3d.visualization.VisualizerWithKeyCallback()
+    # vis.create_window(width=width, height=height, left=100)
+    # vis.add_geometry(pcd)
+    vis = open3d.visualization.draw_geometries([pcd])
+    open3d.visualization.ViewControl()
+
 if __name__ == "__main__":
     config_file = './configs/nusc/lidarseg/nusc_lidarseg.py'
     cfg = Config.fromfile(config_file)
@@ -54,7 +76,10 @@ if __name__ == "__main__":
     print(dataset.__len__())
 
     i=10
-    data = dataset.__getitem__(i)
+    points,labels,front_image = dataset.__getitem__(i)
+
+    visualize_pcloud(points,labels)
+
 
     for i in range(100):
         data = dataset.__getitem__(i)

@@ -177,6 +177,7 @@ train_preprocessor = dict(
     use_img=use_img,
     remove_points_after_sample=True,  # False
     doLidarSegmentation = True,
+    postAugmentation = True,
 )
 
 val_preprocessor = dict(
@@ -198,9 +199,6 @@ train_pipeline = [
     dict(type="LoadLidarSegLabels", dataset= 'NUSCENES', doAugmentation=True),
     dict(type="LoadPointCloudAnnotations", with_bbox=True, use_img=use_img),
     dict(type="Preprocess", cfg=train_preprocessor),
-    dict(type="Voxelization", cfg=voxel_generator),
-    dict(type="AssignLabel", cfg=train_cfg["assigner"]),
-    dict(type="Reformat"),
 ]
 test_pipeline = [
     dict(type="LoadPointCloudFromFile", dataset=dataset_type, use_img=use_img),

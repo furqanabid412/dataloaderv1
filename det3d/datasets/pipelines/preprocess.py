@@ -51,6 +51,7 @@ class Preprocess(object):
         self.no_augmentation = cfg.get('no_augmentation', False)
         self.use_img = cfg.get("use_img", False)
         self.doLidarSegmentation=cfg.doLidarSegmentation
+        self.postAugmentation=cfg.postAugmentation
 
     def __call__(self, res, info):
 
@@ -67,6 +68,9 @@ class Preprocess(object):
             points = res["lidar"]["combined"]
         else:
             raise NotImplementedError
+
+        if self.doLidarSegmentation:
+            points=np.concatenate((points,res["lidar"]["lidarseg"]),axis=1)
 
 
         #  For training save ground truth annotations into gt_dict
@@ -122,6 +126,19 @@ class Preprocess(object):
                 selected_feature[5:5 + 3] = 1. if self.use_img else 0.
 
 
+                # sample_all_v2 return a dictionary of sampled points with
+                # "gt_names": np.array([s["name"] for s in sampled]),
+                # "avail_2d": np.array([s["avail_2d"] for s in sampled]),
+                # "bboxes": np.array([s["bbox"] for s in sampled]),
+                # "depths": np.array([s["depth"] for s in sampled]),
+                # "patch_path": np.array([s["cam_paths"] for s in sampled]),
+                # "difficulty": np.array([s["difficulty"] for s in sampled]),
+                # "gt_boxes": sampled_gt_boxes,
+                # "gt_frustums": sampled_gt_frustums,
+                # "points": np.concatenate(s_points_list, axis=0),
+                # "gt_masks"
+
+
                 sampled_dict = self.db_sampler.sample_all_v2(res["metadata"]["image_prefix"],
                     gt_dict["gt_boxes"], gt_dict["gt_names"],gt_dict["gt_frustums"],
                     selected_feature,random_crop=False,revise_calib=True,
@@ -153,8 +170,13 @@ class Preprocess(object):
                     gt_dict["gt_frustums"] = np.concatenate([gt_dict["gt_frustums"], sampled_frustums])
                     gt_boxes_mask = np.concatenate([gt_boxes_mask, sampled_gt_masks], axis=0)
 
+                    # removes thr lidar points from original pointcloud
+                    # if they are inside a new sample object to be placed
                     if self.remove_points_after_sample:
+                        # returns masks which is a [No.of pts,No. of samples] array
+                        # True if a point belongs to corresponding sample
                         masks = box_np_ops.points_in_rbbox(points, sampled_gt_boxes)
+                        # row,col=np.where(masks==True)
                         points = points[np.logical_not(masks.any(-1))]
 
                     if self.use_img:  # paste imgs
@@ -163,6 +185,7 @@ class Preprocess(object):
                     # from tools.visualization import show_pts_in_box
                     # show_pts_in_box(points, sampled_points)
 
+                    # point filtering based on far to near
                     points, gt_boxes_mask = procress_points(points, sampled_points, gt_boxes_mask, gt_dict)
 
             if self.use_img:
@@ -170,39 +193,33 @@ class Preprocess(object):
                 gt_dict.pop('bboxes')
                 gt_dict.pop('depths')
 
+            # remove the objects which are removed from the point filtering algorithm
             _dict_select(gt_dict, gt_boxes_mask)
 
-            gt_classes = np.array(
-                [self.class_names.index(n) + 1 for n in gt_dict["gt_names"]],
-                dtype=np.int32,
-            )
+            # get the class labels of all the objects gt
+            gt_classes = np.array([self.class_names.index(n) + 1 for n in gt_dict["gt_names"]],dtype=np.int32,)
             gt_dict["gt_classes"] = gt_classes
 
-            gt_dict["gt_boxes"], points = prep.random_flip_both(gt_dict["gt_boxes"], points)
-            
-            gt_dict["gt_boxes"], points = prep.global_rotation(
-                gt_dict["gt_boxes"], points, rotation=self.global_rotation_noise
-            )
-            gt_dict["gt_boxes"], points = prep.global_scaling_v2(
-                gt_dict["gt_boxes"], points, *self.global_scaling_noise
-            )
-            gt_dict["gt_boxes"], points = prep.global_translate_(
-                gt_dict["gt_boxes"], points, noise_translate_std=self.global_translate_std
-            )
+            # data flip,rotation,scaling and translation
+            if self.postAugmentation:
+                gt_dict["gt_boxes"], points = prep.random_flip_both(gt_dict["gt_boxes"], points)
+                gt_dict["gt_boxes"], points = prep.global_rotation(gt_dict["gt_boxes"], points, rotation=self.global_rotation_noise)
+                gt_dict["gt_boxes"], points = prep.global_scaling_v2(gt_dict["gt_boxes"], points, *self.global_scaling_noise)
+                gt_dict["gt_boxes"], points = prep.global_translate_(gt_dict["gt_boxes"], points, noise_translate_std=self.global_translate_std)
         elif self.no_augmentation:
-            gt_boxes_mask = np.array(
-                [n in self.class_names for n in gt_dict["gt_names"]], dtype=np.bool_
-            )
+            gt_boxes_mask = np.array([n in self.class_names for n in gt_dict["gt_names"]], dtype=np.bool_)
             _dict_select(gt_dict, gt_boxes_mask)
-
-            gt_classes = np.array(
-                [self.class_names.index(n) + 1 for n in gt_dict["gt_names"]],
-                dtype=np.int32,
-            )
+            gt_classes = np.array([self.class_names.index(n) + 1 for n in gt_dict["gt_names"]],dtype=np.int32,)
             gt_dict["gt_classes"] = gt_classes
 
         if self.shuffle_points:
             np.random.shuffle(points)
+
+        if self.doLidarSegmentation:
+            res['lidar'].pop('lidarseg')
+            res['lidar']['lidarseg'] = points[:,-1]
+            points=points[:,:-1]
+            # lidarseg = res["lidar"]["points"][:-1]
 
         if self.use_img:
             points = np.concatenate([points, np.ones([points.shape[0], 1])], axis=1).astype(np.float32)
@@ -533,4 +550,3 @@ class AssignLabel(object):
         res["lidar"]["targets"] = example
 
         return res, info
-

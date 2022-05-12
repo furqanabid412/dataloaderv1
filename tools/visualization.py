@@ -7,18 +7,24 @@ from matplotlib.pyplot import MultipleLocator
 import mayavi.mlab as mlab
 
 
-def show_pts_in_box(pts_GT, pts_pred=None, pts_3=None, pts_4=None, box3d=None):
+def show_pts_in_box(pts_GT=None, pts_pred=None, pts_3=None, pts_4=None, box3d=None):
     # draw one object and its box
     # pts: n*3, box: 1, 8, 3
 
     fig = mlab.figure(figure=None, bgcolor=(0, 0, 0), fgcolor=None, engine=None, size=(1000, 500))
-    draw_lidar(pts_GT, fig=fig, pts_color=(1, 0, 0))
+
+    if pts_GT is not None:
+        # red color
+        draw_lidar(pts_GT, fig=fig, pts_color=(1, 0, 0))
     if pts_pred is not None:
-        draw_lidar(pts_pred, fig=fig, pts_color=(0, 1, 1))
+        # light green
+        draw_lidar(pts_pred, fig=fig, pts_color=(0.1, 1, 0.2))
     if pts_3 is not None:
-        draw_lidar(pts_3, fig=fig, pts_color=(0, 1, 0))
+        # brown
+        draw_lidar(pts_3, fig=fig, pts_color=(0.6, 0.3, 0))
     if pts_4 is not None:
-        draw_lidar(pts_4, fig=fig, pts_color=(1, 1, 0))
+        # purple
+        draw_lidar(pts_4, fig=fig, pts_color=(0.8, 0.1, 0.8))
     if box3d is not None:
         draw_gt_boxes3d(box3d, fig=fig, color=(1, 1, 1))
 

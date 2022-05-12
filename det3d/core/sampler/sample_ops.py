@@ -428,7 +428,9 @@ class DataBaseSamplerV2:
             # iterating over all the sampled gt
             # step1 : load corresponding pointcloud
             # step2 : Translate loaded pcloud(sampled) to box3d_lidar
-            # step3 :
+            # step3 : convert 3d corners to image bbox
+            # step4 : if the image bbox converted and the original bbox from gt are different then
+            #
 
             for i, info in enumerate(sampled):
                 try:
@@ -449,6 +451,10 @@ class DataBaseSamplerV2:
                     print(str(pathlib.Path(root_path) / info["path"]), 'error')
                     continue
 
+                # since we added last row for lidarSegmentation labels
+                camid_index=-1
+                if doLidarSegmentation:
+                    camid_index-=1
 
                 if revise_calib and calib is not None:
                     im_shape = (448*2, 1600)
@@ -459,19 +465,28 @@ class DataBaseSamplerV2:
                     # xor = 1 if the new and original availabilty of gt is changed
                     changed_ids = np.logical_xor(avail_new, info['avail_2d'])
                     changed_ids = np.where(changed_ids)[0]
+
+                    # originally the camera ids are [0,1,2,3,4,5]
+                    # but since it's normalized in pcloud data files so
+                    # here we need to normalize the changed ids too
+                    # [0 1 2 3 4 5] -----> [-1 -0.6 -0.2 0.2 0.6 1]
+
                     changed_ids = changed_ids / (6 - 1) * 2 - 1
                     # Originally there is a cam but now there is no -> the projection point cam_id is set to infinity
                     for changed_id in changed_ids:
-                        s_points[s_points[:, -1] == changed_id, -1] = -41
-                    update_ids = np.where(avail_new)[0]
+                        s_points[s_points[:, camid_index] == changed_id, camid_index] = -41
+
+                    # get camera ids to update
+                    update_ids = np.where(avail_new)[0] #update_ids=list of all the cameras
+
                     for update_id in update_ids:
-                        val = (s_points[:, -1] == (update_id / (6 - 1) * 2 - 1))
+                        val = (s_points[:, camid_index] == (update_id / (6 - 1) * 2 - 1)) #points belong to current camera update_id
                         tmp1 = info['bbox'][update_id, 0] / (im_shape[1] - 1) * 2 - 1
                         tmp2 = info['bbox'][update_id, 1] / (im_shape[0] - 1) * 2 - 1
                         tmp3 = bboxes_new[update_id, 0] / (im_shape[1] - 1) * 2 - 1
                         tmp4 = bboxes_new[update_id, 1] / (im_shape[0] - 1) * 2 - 1
-                        s_points[val, -3] = (s_points[val, -3] - tmp1) * scale[update_id, 0] + tmp3
-                        s_points[val, -2] = (s_points[val, -2] - tmp2) * scale[update_id, 1] + tmp4
+                        s_points[val, camid_index-2] = (s_points[val, camid_index-2] - tmp1) * scale[update_id, 0] + tmp3
+                        s_points[val, camid_index-1] = (s_points[val, camid_index-1] - tmp2) * scale[update_id, 1] + tmp4
                     sampled[i]['bbox'] = bboxes_new
                     sampled[i]['avail_2d'] = avail_new
                 s_points_list.append(s_points)

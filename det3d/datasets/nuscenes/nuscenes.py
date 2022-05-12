@@ -192,35 +192,17 @@ class NuScenesDataset(PointCloudDataset):
         return image.copy()
 
     def get_sensor_data(self, idx):
-
         info = self._nusc_infos[idx]
 
-        res = {
-            "lidar": {
-                "type": "lidar",
-                "points": None,
-                "nsweeps": self.nsweeps,
+        # a dictionary which will contain the results from each step in the pipeline
+        res = {"lidar": {"type": "lidar","points": None,"nsweeps": self.nsweeps,
                 # "ground_plane": -gp[-1] if with_gp else None,
-                "annotations": None,
-            },
-            "metadata": {
-                "image_prefix": self._root_path,
-                "num_point_features": self._num_point_features,
-                "token": info["token"],
-            },
-            "camera": {
-                "name": self.cam_name if self.use_img else None,
-                "cam_paths": info['cam_paths'],
-            },
-            "calib": {
-                "ref_to_global": info['ref_to_global'],
-                "cams_from_global": info['cams_from_global'],
-                "cam_intrinsics": info['cam_intrinsics'],
-            } if self.use_img else None,
-
+                "annotations": None,},
+            "metadata": {"image_prefix": self._root_path,"num_point_features": self._num_point_features,"token": info["token"],},
+            "camera": {"name": self.cam_name if self.use_img else None,"cam_paths": info['cam_paths'],},
+            "calib": {"ref_to_global": info['ref_to_global'],"cams_from_global": info['cams_from_global'],"cam_intrinsics": info['cam_intrinsics'],} if self.use_img else None,
             "mode": "val" if self.test_mode else "train",
-            "painted": self.painted,
-        }
+            "painted": self.painted,}
 
         if self.use_img:
             img = [cv2.imread(info['cam_paths'][cam_sensor]) for cam_sensor in self.cam_name]
@@ -236,7 +218,8 @@ class NuScenesDataset(PointCloudDataset):
                 for i in range(4):  # double flip
                     data[i]['img'] = [self.get_image(cur_img) for cur_img in data[i]['img']]
                     data[i]['img'] = np.stack(data[i]['img'], axis=0)
-        return data
+        # return data
+        return data['lidar']['points'],data['lidar']['lidarseg'],data['img'][0]
 
     def __getitem__(self, idx):
         return self.get_sensor_data(idx)

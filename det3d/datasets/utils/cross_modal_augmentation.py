@@ -48,39 +48,64 @@ def procress_points(points, sampled_points, gt_boxes_mask, gt_dict):
 
     valid = np.zeros([points.shape[0]], dtype=np.bool_)
     valid_filter = np.zeros([points.shape[0]], dtype=np.bool_)
+
+    # First "No. of sampled points" are valid samples for filtering
     valid_sample = np.zeros([points.shape[0]], dtype=np.bool_)
     valid_sample[:sampled_points.shape[0]] = 1
+
+    # [No of points, No of gt_boxes]
     point_indices = box_np_ops.points_in_rbbox(points, gt_dict["gt_boxes"])
 
     depths = np.sqrt(np.square(gt_dict['gt_boxes'][:, 0]) + np.square(gt_dict['gt_boxes'][:, 1]) +
                      np.square(gt_dict['gt_boxes'][:, 2]))
+    # sorting the depths in the ascending order (low to high)
     idxs = np.argsort(depths)
 
     for idx in idxs:
         cur_frus = gt_dict["gt_frustums"][idx]
 
+        # STEP 1 : Find those points which are within the gt_box theta and phi
+
         # valid points in object frustum
+        # points theta > gt_frustum min theta and points theta < gt_frustum max theta
+        # TRUE if points are within the range of gt_frustum min and max
         val = (pts_rr[:, 1] > cur_frus[1, 0, 0]) & (pts_rr[:, 1] < cur_frus[1, 1, 0])
+
+        # get phi values in sp_frus [min,max]
         sp_frus = [cur_frus[2, :, 0]] if cur_frus[2, 0, 1] < 0 else [cur_frus[2, :, 0], cur_frus[2, :, 1]]
         for frus in sp_frus:
+            # if val and (points phi > gt_frustum min phi and points phi < gt_frustum max phi)
             val = val & (pts_rr[:, 2] > frus[0]) & (pts_rr[:, 2] < frus[1])
+
+        # STEP 2 : Find out the points which belongs to current gt_box but not been filtered so far
 
         val1 = (point_indices[:, idx]) & (valid_filter < 1)  # points in 3D box and not filtered
         valid[val1] = 1  # remained points of current object - valid set to 1
+
+        # STEP 3 : Take logical and of points in the current field of view (step1) and needs to be filtered (step2)
+
         val = val & (np.logical_not(valid))
+
+        # STEP 4 : Since the gt_dict contains all the objects (original+sampled)
+        # only filter those points which belongs to original foreground
+
         if not gt_dict["pasted"][idx]:  # sampled box -> filter bg and fg; original box -> only filter sampled fg
             val = val & valid_sample
         valid_filter[val] = 1
 
         # from tools.visual import show_pts_in_box
+        # from tools.visualization import show_pts_in_box
         # show_pts_in_box(points, points[valid], points[val1], points[val])
+        # red,light green,brown, purple
+        # show_pts_in_box(None, points[val1], points[valid], points[val])
 
     # from tools.visual import show_pts_in_box
     # show_pts_in_box(points, points[valid], sampled_points, points[valid_filter])
 
+    # remove those points which needs to be filtered
     points = points[valid_filter < 1]
 
-    # filter those gt boxes with no points
+    # After filtering if there is a gt_box (probably in original pcloud) remove it from list
     for i in range(gt_dict['gt_boxes'].shape[0]):
         val = (valid_filter < 1) & (point_indices[:, i])
         if not val.any():
