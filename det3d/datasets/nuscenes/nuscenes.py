@@ -208,9 +208,6 @@ class NuScenesDataset(PointCloudDataset):
             img = [cv2.imread(info['cam_paths'][cam_sensor]) for cam_sensor in self.cam_name]
             res['img'] = np.stack(img, axis=0)
 
-        from visualize import visualize_pcloud,visualize_camera
-
-
 
         data, _ = self.pipeline(res, info)
 

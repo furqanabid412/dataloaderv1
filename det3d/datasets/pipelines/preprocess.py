@@ -57,6 +57,11 @@ class Preprocess(object):
 
         res["mode"] = self.mode
 
+        # For visualization
+        if False:
+            from visualize import visualize_pcloud, visualize_camera
+            visualize_pcloud(res['lidar']['points'], np.squeeze(res['lidar']['lidarseg']))
+
         # copy the pointcloud data N*8(Nuscenes) into points
 
         if res["type"] in ["WaymoDataset"]:

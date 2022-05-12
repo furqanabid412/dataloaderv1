@@ -5,6 +5,8 @@ import cv2
 
 
 def visualize_pcloud(scan_points,scan_labels):
+    # vis = open3d.visualization.Visualizer()
+    # vis.create_window()
     import yaml
     label_colormap = yaml.safe_load(open('colormap.yaml', 'r'))
     label_colormap =label_colormap['color_map']
