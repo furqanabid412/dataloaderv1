@@ -208,16 +208,23 @@ class NuScenesDataset(PointCloudDataset):
             img = [cv2.imread(info['cam_paths'][cam_sensor]) for cam_sensor in self.cam_name]
             res['img'] = np.stack(img, axis=0)
 
+        from visualize import visualize_pcloud,visualize_camera
+
+
+
         data, _ = self.pipeline(res, info)
 
+
         if self.use_img:
-            if not self.test_mode or not self.double_flip:
-                data['img'] = [self.get_image(cur_img) for cur_img in data['img']]
-                data['img'] = np.stack(data['img'], axis=0)
-            else:
-                for i in range(4):  # double flip
-                    data[i]['img'] = [self.get_image(cur_img) for cur_img in data[i]['img']]
-                    data[i]['img'] = np.stack(data[i]['img'], axis=0)
+            # for testing
+            if False:
+                if not self.test_mode or not self.double_flip:
+                    data['img'] = [self.get_image(cur_img) for cur_img in data['img']]
+                    data['img'] = np.stack(data['img'], axis=0)
+                else:
+                    for i in range(4):  # double flip
+                        data[i]['img'] = [self.get_image(cur_img) for cur_img in data[i]['img']]
+                        data[i]['img'] = np.stack(data[i]['img'], axis=0)
         # return data
         return data['lidar']['points'],data['lidar']['lidarseg'],data['img'][0]
 
