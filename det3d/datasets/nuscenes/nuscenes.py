@@ -225,7 +225,8 @@ class NuScenesDataset(PointCloudDataset):
         # return data
         return {"points":data['lidar']['points'],
                 "labels":data['lidar']['lidarseg'],
-                "front_image":data['img'][0],}
+                "front_image":data['img'][0],
+                "calib":data['calib']}
 
     def __getitem__(self, idx):
         return self.get_sensor_data(idx)

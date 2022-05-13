@@ -57,30 +57,30 @@ if __name__ == "__main__":
     cfg = Config.fromfile(config_file)
     dataset = build_dataset(cfg.data.train)
     # dataset = build_dataset(cfg.data.val)
-    print(dataset.__len__())
+    print("dataset length is : ",dataset.__len__())
 
     i=0
     data = dataset.__getitem__(i)
 
-    points, labels, front_image = data["points"],data["labels"],data["front_image"]
+    points, labels, front_image,calib = data["points"],data["labels"],data["front_image"],data["calib"]
 
     # visualize_camera(front_image)
     # plot_colormap()
     # visualize_pcloud(points,labels)
 
 
-    data_loader = DataLoader(dataset,batch_size=1,shuffle=False,num_workers=2,collate_fn=collate_kitti,pin_memory=False,)
+    data_loader = DataLoader(dataset,batch_size=1,shuffle=False,num_workers=2,pin_memory=False,)
 
     # model = build_detector(cfg.model, train_cfg=cfg.train_cfg, test_cfg=cfg.test_cfg)
     # model = model.cuda()
     # model.eval()
 
-    for i, data_batch in enumerate(data_loader):
-        example = example_to_device(
-            data_batch, 'cuda', non_blocking=False
-        )
-        losses = model(example, return_loss=True)
-        print('loss', losses)
-        break
+    # for i, data_batch in enumerate(data_loader):
+    #     example = example_to_device(
+    #         data_batch, 'cuda', non_blocking=False
+    #     )
+    #     losses = model(example, return_loss=True)
+    #     print('loss', losses)
+    #     break
 
 
