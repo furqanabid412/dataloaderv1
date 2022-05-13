@@ -226,11 +226,12 @@ class Preprocess(object):
             points=points[:,:-1]
             # lidarseg = res["lidar"]["points"][:-1]
 
-        if self.use_img:
-            points = np.concatenate([points, np.ones([points.shape[0], 1])], axis=1).astype(np.float32)
+        # if self.use_img:
+        #     points = np.concatenate([points, np.ones([points.shape[0], 1])], axis=1).astype(np.float32)
         res["lidar"]["points"] = points
 
         if self.mode == "train":
+
             res["lidar"]["annotations"] = gt_dict
 
         return res, info

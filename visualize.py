@@ -8,7 +8,7 @@ import yaml
 def visualize_pcloud(scan_points,scan_labels):
     # vis = open3d.visualization.Visualizer()
     # vis.create_window()
-    label_colormap = yaml.safe_load(open('colormap.yaml', 'r'))
+    label_colormap = yaml.safe_load(open('configs/nusc/colormap.yaml', 'r'))
     label_colormap =label_colormap['color_map']
     # rendering the pcloud in open3d
     pcd = open3d.geometry.PointCloud()
@@ -28,6 +28,7 @@ def visualize_pcloud(scan_points,scan_labels):
 
 
 def visualize_camera(img):
+    # img= np.concatenate(img)
     cv2.imwrite('data.jpg', img)
     cv2.imshow('img_show',img)
     cv2.waitKey(0)
@@ -45,7 +46,7 @@ def plot_colormap():
                         28: 'building', 29: 'ignore', 30: 'vegetation', 31: 'ignore'}
 
     # label_to_general = dict((y,x) for x,y in general_to_label.items())
-    label_colormap = yaml.safe_load(open('colormap.yaml', 'r'))
+    label_colormap = yaml.safe_load(open('configs/nusc/colormap.yaml', 'r'))
     label_colormap = label_colormap['color_map']
 
     for ind,(key,val) in enumerate(general_to_label.items()):
@@ -60,17 +61,3 @@ def plot_colormap():
 
     plt.show()
 
-# import cv2
-# img = res["img"][cam_id]
-# pts_uv_filtered = pts_uv[mask].astype(np.int)
-# cur_rgb = img[pts_uv_filtered[:, 1], pts_uv_filtered[:, 0], :].astype(np.uint8)
-#
-# img_test = np.zeros_like(img, dtype=np.uint8)
-# for i in range(pts_uv_filtered.shape[0]):
-#     color = (int(cur_rgb[i, 0]), int(cur_rgb[i, 1]), int(cur_rgb[i, 2]))
-#     p = (int(pts_uv_filtered[i, 0]), int(pts_uv_filtered[i, 1]))
-#     cv2.circle(img_test, p, 1, color=color)
-# img_show = np.concatenate([img, img_test], axis=0)
-# img_show = cv2.resize(img_show, (800, 900))
-# cv2.imshow('img_show', img_show)
-# cv2.waitKey(0)

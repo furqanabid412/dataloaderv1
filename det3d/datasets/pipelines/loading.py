@@ -8,7 +8,7 @@ import pycocotools.mask as maskUtils
 from pathlib import Path
 from copy import deepcopy
 from det3d import torchie
-from det3d.core import box_np_ops
+import det3d.core.bbox.box_np_ops
 import pickle 
 import os 
 from ..registry import PIPELINES
@@ -234,6 +234,7 @@ class LoadPointCloudFromFile(object):
                     mask = (pts_cam[2, :] > 0) & (pts_uv[:, 0] > 1) & (pts_uv[:, 0] < im_shape[1] - 1) & (
                             pts_uv[:, 1] > 1) & (pts_uv[:, 1] < im_shape[0] - 1)
 
+
                     pts_uv_all[mask, :2] = pts_uv[mask, :2]
                     pts_uv_all[mask, 2] = float(cam_id)
 
@@ -260,8 +261,8 @@ class LoadPointCloudFromFile(object):
                 res["metadata"]["num_point_features"] += 3
                 combined = np.concatenate([combined, pts_uv_all], axis=1).astype(np.float32)
 
+            res["lidar"]["points"] = combined
             res["lidar"]["combined"] = combined
-
         
         elif self.type == "WaymoDataset":
             path = info['path']

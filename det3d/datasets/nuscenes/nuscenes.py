@@ -43,6 +43,7 @@ class NuScenesDataset(PointCloudDataset):
         class_names=None,
         test_mode=False,
         version="v1.0-trainval",
+        maxPoints=40000,
         **kwargs,
     ):
         super(NuScenesDataset, self).__init__(
@@ -73,6 +74,7 @@ class NuScenesDataset(PointCloudDataset):
         self.cam_name = ['CAM_FRONT', 'CAM_FRONT_RIGHT', 'CAM_BACK_RIGHT', 'CAM_BACK', 'CAM_BACK_LEFT',
                          'CAM_FRONT_LEFT']
         self.double_flip = double_flip
+        self.maxPoints=maxPoints
 
         if use_img:
             # self.mean = [0.485, 0.456, 0.406]  # RGB
@@ -212,6 +214,25 @@ class NuScenesDataset(PointCloudDataset):
         data, _ = self.pipeline(res, info)
 
 
+
+        points = data['lidar']['points']
+
+        if data['lidar']['lidarseg'].ndim==1:
+            labels = np.expand_dims(data['lidar']['lidarseg'],axis=1)
+        else:
+            labels = data['lidar']['lidarseg']
+
+        concatData = np.hstack((points, labels))
+        datalength = concatData.shape[0]
+        if (datalength > self.maxPoints):
+            concatData = concatData[:self.maxPoints, :]
+
+        if (datalength < self.maxPoints):
+            concatData = np.pad(concatData, [(0, self.maxPoints - datalength), (0, 0)], mode='constant')
+
+        points = concatData[:,0:-1]
+        labels = concatData[:,-1]
+
         if self.use_img:
             # for testing
             if False:
@@ -223,8 +244,8 @@ class NuScenesDataset(PointCloudDataset):
                         data[i]['img'] = [self.get_image(cur_img) for cur_img in data[i]['img']]
                         data[i]['img'] = np.stack(data[i]['img'], axis=0)
         # return data
-        return {"points":data['lidar']['points'],
-                "labels":data['lidar']['lidarseg'],
+        return {"points":points,
+                "labels":labels,
                 "front_image":data['img'][0],
                 "calib":data['calib']}
 

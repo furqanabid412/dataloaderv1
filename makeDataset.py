@@ -1,4 +1,4 @@
-from tools.create_data import nuscenes_data_prep
+from create_data import nuscenes_data_prep
 
 
 

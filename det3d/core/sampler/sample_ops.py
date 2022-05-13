@@ -357,7 +357,7 @@ class DataBaseSamplerV2:
                     #     class_name, sampled_num, avoid_coll_boxes,
                     # )
                     sampled_cls = self.sample_class_v3(class_name, sampled_num, avoid_coll_boxes, avoid_coll_frustums)
-
+                    # print("no of classes",kk,class_name,sampled_num,len(sampled_cls))
                 sampled += sampled_cls
                 if len(sampled_cls) > 0:
                     if len(sampled_cls) == 1:

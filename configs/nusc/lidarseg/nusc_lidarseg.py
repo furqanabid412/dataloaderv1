@@ -202,12 +202,9 @@ train_pipeline = [
 ]
 test_pipeline = [
     dict(type="LoadPointCloudFromFile", dataset=dataset_type, use_img=use_img),
+    dict(type="LoadLidarSegLabels", dataset='NUSCENES', doAugmentation=True),
     dict(type="LoadPointCloudAnnotations", with_bbox=True, use_img=use_img),
-    dict(type="Preprocess", cfg=val_preprocessor),
-    dict(type="DoubleFlip") if DOUBLE_FLIP else dict(type="Empty"),
-    dict(type="Voxelization", cfg=voxel_generator),
-    dict(type="AssignLabel", cfg=train_cfg["assigner"]),
-    dict(type="Reformat", double_flip=DOUBLE_FLIP),
+    # dict(type="Preprocess", cfg=train_preprocessor),
 ]
 
 data = dict(
