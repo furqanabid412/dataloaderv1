@@ -223,7 +223,9 @@ class NuScenesDataset(PointCloudDataset):
                         data[i]['img'] = [self.get_image(cur_img) for cur_img in data[i]['img']]
                         data[i]['img'] = np.stack(data[i]['img'], axis=0)
         # return data
-        return data['lidar']['points'],data['lidar']['lidarseg'],data['img'][0]
+        return {"points":data['lidar']['points'],
+                "labels":data['lidar']['lidarseg'],
+                "front_image":data['img'][0],}
 
     def __getitem__(self, idx):
         return self.get_sensor_data(idx)

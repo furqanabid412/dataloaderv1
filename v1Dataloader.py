@@ -12,7 +12,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 # from tools.visualization import show_pts_in_box
-from visualize import visualize_pcloud,visualize_camera
+from visualize import visualize_pcloud,visualize_camera,plot_colormap
 
 
 import time
@@ -52,35 +52,27 @@ def example_to_device(example, device, non_blocking=False) -> dict:
 
 
 if __name__ == "__main__":
+
     config_file = './configs/nusc/lidarseg/nusc_lidarseg.py'
     cfg = Config.fromfile(config_file)
-
     dataset = build_dataset(cfg.data.train)
     # dataset = build_dataset(cfg.data.val)
     print(dataset.__len__())
 
-    i=10
-    points,labels,front_image = dataset.__getitem__(i)
+    i=0
+    data = dataset.__getitem__(i)
 
-    visualize_camera(front_image)
-    visualize_pcloud(points,labels)
+    points, labels, front_image = data["points"],data["labels"],data["front_image"]
 
-    for i in range(100):
-        data = dataset.__getitem__(i)
-        break
-    print(11)
+    # visualize_camera(front_image)
+    # plot_colormap()
+    # visualize_pcloud(points,labels)
 
-    data_loader = DataLoader(
-            dataset,
-            batch_size=1,
-            shuffle=False,
-            num_workers=2,
-            collate_fn=collate_kitti,
-            pin_memory=False,
-        )
 
-    model = build_detector(cfg.model, train_cfg=cfg.train_cfg, test_cfg=cfg.test_cfg)
-    model = model.cuda()
+    data_loader = DataLoader(dataset,batch_size=1,shuffle=False,num_workers=2,collate_fn=collate_kitti,pin_memory=False,)
+
+    # model = build_detector(cfg.model, train_cfg=cfg.train_cfg, test_cfg=cfg.test_cfg)
+    # model = model.cuda()
     # model.eval()
 
     for i, data_batch in enumerate(data_loader):
