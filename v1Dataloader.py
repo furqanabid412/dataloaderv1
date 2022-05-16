@@ -27,14 +27,19 @@ if __name__ == "__main__":
     i=0
     data = dataset.__getitem__(i)
     #
-    # points, labels, front_image,calib = data["points"],data["labels"],data["front_image"],data["calib"]
+    points, labels, front_image,calib = data["points"],data["labels"],data["front_image"],data["calib"]
 
-    # visualize_camera(front_image)
-    # plot_colormap()
-    # visualize_pcloud(points,labels)
+    visualize_camera(front_image)
+    plot_colormap()
+
+    from rangeProjection import do_range_projection
+    projected_labels = do_range_projection(points,labels)
 
 
-    data_loader = DataLoader(dataset,batch_size=4,shuffle=False,num_workers=4,pin_memory=False,)
+    visualize_pcloud(points,labels)
+
+
+    data_loader = DataLoader(dataset,batch_size=1,shuffle=False,num_workers=4,pin_memory=False,)
 
     for i, data_batch in tqdm(enumerate(data_loader)):
         print(i)

@@ -28,7 +28,7 @@ def visualize_pcloud(scan_points,scan_labels):
 
 
 def visualize_camera(img):
-    # img= np.concatenate(img)
+    img= np.concatenate(img)
     cv2.imwrite('data.jpg', img)
     cv2.imshow('img_show',img)
     cv2.waitKey(0)

@@ -346,46 +346,55 @@ class DataBaseSamplerV2:
         for class_name, sampled_num in zip(sampled_groups, sample_num_per_class):
             # if negative or zero -> don't need to sample anything
             # else do following
+            remaining = sampled_num
+            run = 0
             if sampled_num > 0:
-                # group sampling not implemented here
-                if self._use_group_sampling:
-                    sampled_cls = self.sample_group(
-                        class_name, sampled_num, avoid_coll_boxes, total_group_ids
-                    )
-                else:
-                    # sampled_cls = self.sample_class_v2(
-                    #     class_name, sampled_num, avoid_coll_boxes,
-                    # )
-                    sampled_cls = self.sample_class_v3(class_name, sampled_num, avoid_coll_boxes, avoid_coll_frustums)
-                    # print("no of classes",kk,class_name,sampled_num,len(sampled_cls))
-                sampled += sampled_cls
-                if len(sampled_cls) > 0:
-                    if len(sampled_cls) == 1:
-                        sampled_gt_box = sampled_cls[0]["box3d_lidar"][np.newaxis, ...]
-                        sampled_gt_frustum = sampled_cls[0]["frustum"][np.newaxis, ...]
-                    else:
-                        sampled_gt_box = np.stack([s["box3d_lidar"] for s in sampled_cls], axis=0)
-                        sampled_gt_frustum = np.stack([s["frustum"] for s in sampled_cls], axis=0)
-
-                    sampled_gt_boxes += [sampled_gt_box]
-                    sampled_gt_frustums += [sampled_gt_frustum]
-                    avoid_coll_boxes = np.concatenate([avoid_coll_boxes, sampled_gt_box], axis=0)
-                    avoid_coll_frustums = np.concatenate([avoid_coll_frustums, sampled_gt_frustum], axis=0)
-
-
-                    # not implemeneted here
+                while(remaining>0):
+                    if run > 5:
+                        break
+                    # group sampling not implemented here
                     if self._use_group_sampling:
-                        if len(sampled_cls) == 1:
-                            sampled_group_ids = np.array(sampled_cls[0]["group_id"])[
-                                np.newaxis, ...
-                            ]
-                        else:
-                            sampled_group_ids = np.stack(
-                                [s["group_id"] for s in sampled_cls], axis=0
-                            )
-                        total_group_ids = np.concatenate(
-                            [total_group_ids, sampled_group_ids], axis=0
+                        sampled_cls = self.sample_group(
+                            class_name, sampled_num, avoid_coll_boxes, total_group_ids
                         )
+                    else:
+                        # sampled_cls = self.sample_class_v2(
+                        #     class_name, sampled_num, avoid_coll_boxes,
+                        # )
+                        sampled_cls = self.sample_class_v3(class_name, remaining, avoid_coll_boxes, avoid_coll_frustums)
+                        # print("no of classes",kk,class_name,sampled_num,len(sampled_cls))
+                    sampled += sampled_cls
+                    if len(sampled_cls) > 0:
+                        if len(sampled_cls) == 1:
+                            sampled_gt_box = sampled_cls[0]["box3d_lidar"][np.newaxis, ...]
+                            sampled_gt_frustum = sampled_cls[0]["frustum"][np.newaxis, ...]
+                        else:
+                            sampled_gt_box = np.stack([s["box3d_lidar"] for s in sampled_cls], axis=0)
+                            sampled_gt_frustum = np.stack([s["frustum"] for s in sampled_cls], axis=0)
+
+                        sampled_gt_boxes += [sampled_gt_box]
+                        sampled_gt_frustums += [sampled_gt_frustum]
+                        avoid_coll_boxes = np.concatenate([avoid_coll_boxes, sampled_gt_box], axis=0)
+                        avoid_coll_frustums = np.concatenate([avoid_coll_frustums, sampled_gt_frustum], axis=0)
+
+                        remaining = remaining-len(sampled_cls)
+                        run+=1
+                        print("name",class_name,"sampled",len(sampled_cls),"remained",remaining)
+                        # print("\n")
+
+                        # not implemeneted here
+                        if self._use_group_sampling:
+                            if len(sampled_cls) == 1:
+                                sampled_group_ids = np.array(sampled_cls[0]["group_id"])[
+                                    np.newaxis, ...
+                                ]
+                            else:
+                                sampled_group_ids = np.stack(
+                                    [s["group_id"] for s in sampled_cls], axis=0
+                                )
+                            total_group_ids = np.concatenate(
+                                [total_group_ids, sampled_group_ids], axis=0
+                            )
 
         # load sampled points
         if len(sampled) > 0:

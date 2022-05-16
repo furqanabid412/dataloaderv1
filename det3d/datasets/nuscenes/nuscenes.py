@@ -246,7 +246,7 @@ class NuScenesDataset(PointCloudDataset):
         # return data
         return {"points":points,
                 "labels":labels,
-                "front_image":data['img'][0],
+                "front_image":data['img'],
                 "calib":data['calib']}
 
     def __getitem__(self, idx):
