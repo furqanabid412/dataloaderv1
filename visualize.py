@@ -9,7 +9,7 @@ def visualize_pcloud(scan_points,scan_labels):
     # vis = open3d.visualization.Visualizer()
     # vis.create_window()
     label_colormap = yaml.safe_load(open('configs/nusc/colormap.yaml', 'r'))
-    label_colormap =label_colormap['color_map']
+    label_colormap =label_colormap['short_color_map']
     # rendering the pcloud in open3d
     pcd = open3d.geometry.PointCloud()
     # scan_points = scan_points.numpy()
@@ -34,7 +34,17 @@ def visualize_camera(img):
     cv2.waitKey(0)
 
 
-def plot_colormap():
+def visualize_2dlabels(img):
+    label_colormap = yaml.safe_load(open('configs/nusc/colormap.yaml', 'r'))
+    label_colormap = label_colormap['short_color_map']
+    colors = np.array([[label_colormap[val] for val in row] for row in img], dtype='B')
+    colors = cv2.cvtColor(colors, cv2.COLOR_BGR2RGB)
+    cv2.imwrite('range_projection.jpg', colors)
+    cv2.imshow('img_show', colors)
+    cv2.waitKey(0)
+
+
+def plot_colormap(original=True):
 
     general_to_label = {0: 'ignore', 1: 'ignore', 2: 'pedestrian', 3: 'pedestrian',
                         4: 'pedestrian', 5: 'ignore', 6: 'pedestrian', 7: 'ignore',
@@ -45,19 +55,38 @@ def plot_colormap():
                         24: 'road', 25: 'ignore', 26: 'sidewalk', 27: 'terrain',
                         28: 'building', 29: 'ignore', 30: 'vegetation', 31: 'ignore'}
 
-    # label_to_general = dict((y,x) for x,y in general_to_label.items())
-    label_colormap = yaml.safe_load(open('configs/nusc/colormap.yaml', 'r'))
-    label_colormap = label_colormap['color_map']
+    mapped = { 'ignore': 0,'car': 1,'pedestrian': 2,  'bicycle': 3,'motorcycle': 4,
+          'bus': 5, 'truck': 6, 'construction_vehicle': 7,'trailer': 8, 'barrier': 9,
+           'traffic_cone': 10,'driveable_surface': 11, 'other_flat': 12,'sidewalk': 13,
+          'terrain': 14, 'manmade': 15,'vegetation': 16}
 
-    for ind,(key,val) in enumerate(general_to_label.items()):
-        plt.subplot(6,6,ind+1)
-        arr = np.full(25,np.int(key),dtype=np.int32)
-        colors = np.array([label_colormap[x] for x in arr])
-        colors = colors.reshape(5,5,-1)
-        plt.subplots_adjust(wspace=0.4,hspace=0.8)
-        plt.title(val,fontsize=8)
-        plt.axis('off')
-        plt.imshow(colors)
+    if original :
+        # label_to_general = dict((y,x) for x,y in general_to_label.items())
+        label_colormap = yaml.safe_load(open('configs/nusc/colormap.yaml', 'r'))
+        label_colormap = label_colormap['color_map']
+
+        for ind,(key,val) in enumerate(general_to_label.items()):
+            plt.subplot(6,6,ind+1)
+            arr = np.full(25,np.int(key),dtype=np.int32)
+            colors = np.array([label_colormap[x] for x in arr])
+            colors = colors.reshape(5,5,-1)
+            plt.subplots_adjust(wspace=0.4,hspace=0.8)
+            plt.title(val,fontsize=8)
+            plt.axis('off')
+            plt.imshow(colors)
+    else:
+        label_colormap = yaml.safe_load(open('configs/nusc/colormap.yaml', 'r'))
+        label_colormap = label_colormap['short_color_map']
+
+        for ind, (key, val) in enumerate(mapped.items()):
+            plt.subplot(4, 5, ind + 1)
+            arr = np.full(25, np.int(val), dtype=np.int32)
+            colors = np.array([label_colormap[x] for x in arr])
+            colors = colors.reshape(5, 5, -1)
+            plt.subplots_adjust(wspace=0.4, hspace=0.8)
+            plt.title(key, fontsize=8)
+            plt.axis('off')
+            plt.imshow(colors)
 
     plt.show()
 

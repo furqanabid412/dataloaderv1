@@ -3,9 +3,8 @@ import numpy as np
 
 proj_fov_up = 3
 proj_fov_down = -25
-proj_W = 1024
+proj_W = 512
 proj_H = 64
-
 
 
 
@@ -51,6 +50,7 @@ def do_range_projection(points,labels):
     # get angles of all points
     yaw = -np.arctan2(scan_y, scan_x)
     pitch = np.arcsin(scan_z / depth)
+    pitch = np.nan_to_num(pitch)
 
     # get projections in image coords
     proj_x = 0.5 * (yaw / np.pi + 1.0)          # in [0.0, 1.0]
@@ -84,7 +84,7 @@ def do_range_projection(points,labels):
     proj_y = proj_y[order]
     proj_x = proj_x[order]
     sem_labels = labels[order]
-    sem_labels = np.squeeze(sem_labels, axis=1)
+    # sem_labels = np.squeeze(sem_labels, axis=1)
 
     # assing to images
     proj_range[proj_y, proj_x] = depth

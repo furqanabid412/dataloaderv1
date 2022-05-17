@@ -10,10 +10,12 @@ from tqdm import tqdm
 import warnings
 warnings.filterwarnings("ignore")
 
-from visualize import visualize_pcloud,visualize_camera,plot_colormap
+from visualize import visualize_pcloud,visualize_camera,plot_colormap,visualize_2dlabels
 
 # def collate_nusc(batch_list, samples_per_gpu=1):
 #     print("wait")
+
+
 
 
 if __name__ == "__main__":
@@ -29,12 +31,22 @@ if __name__ == "__main__":
     #
     points, labels, front_image,calib = data["points"],data["labels"],data["front_image"],data["calib"]
 
+    import yaml
+    nusc_config = yaml.safe_load(open('configs/nusc/lidarseg/nusc_config.yaml', 'r'))
+    learning_map = nusc_config['learning_map']
+
+    lmap = np.zeros((np.max([k for k in learning_map.keys()]) + 1), dtype=np.int32)
+    for k, v in learning_map.items():
+        lmap[k] = v
+    labels = labels.astype(np.int)
+    labels = lmap[labels]
     visualize_camera(front_image)
-    plot_colormap()
+    # plot_colormap(original=False)
 
     from rangeProjection import do_range_projection
     projected_labels = do_range_projection(points,labels)
 
+    visualize_2dlabels(projected_labels)
 
     visualize_pcloud(points,labels)
 
