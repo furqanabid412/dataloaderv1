@@ -52,7 +52,7 @@ class NuScenesDataset(PointCloudDataset):
 
         self.nsweeps = nsweeps
         # assert self.nsweeps > 0, "At least input one sweep please!"
-        print(self.nsweeps)
+        # print(self.nsweeps)
 
         self._info_path = info_path
         self._class_names = class_names
@@ -243,11 +243,30 @@ class NuScenesDataset(PointCloudDataset):
                     for i in range(4):  # double flip
                         data[i]['img'] = [self.get_image(cur_img) for cur_img in data[i]['img']]
                         data[i]['img'] = np.stack(data[i]['img'], axis=0)
+
+        # map labels to prediction classes
+        from utils import class_mapping
+        labels = class_mapping(labels.astype(np.int))
+
+        from rangeProjection import do_range_projection
+        # range projection
+        proj_range, proj_xyz, proj_remission, projected_labels, proj_x, proj_y = do_range_projection(points, labels)
+
+        projected_rangeimg = np.concatenate(
+            (np.expand_dims(proj_remission, axis=0), np.expand_dims(proj_range, axis=0),
+             np.rollaxis(proj_xyz, 2)), axis=0)
+
         # return data
-        return {"points":points,
-                "labels":labels,
-                "front_image":data['img'],
-                "calib":data['calib']}
+        # return {"points":points,
+        #         "labels":labels,
+        #         "front_image":data['img'],
+        #         "calib":data['calib']}
+
+        return {
+            "projected_rangeimg":projected_rangeimg,
+            "projected_labels":projected_labels,
+            }
+
 
     def __getitem__(self, idx):
         return self.get_sensor_data(idx)

@@ -1,13 +1,13 @@
 import numpy as np
+import numba
+
+proj_fov_up = 10
+proj_fov_down = -30
+proj_W = 1024
+proj_H = 32
 
 
-proj_fov_up = 3
-proj_fov_down = -25
-proj_W = 512
-proj_H = 64
-
-
-
+# @numba.jit(nopython=True)
 def do_range_projection(points,labels):
     """ Project a pointcloud into a spherical projection image.projection.
           Function takes no arguments because it can be also called externally
@@ -40,7 +40,9 @@ def do_range_projection(points,labels):
     fov = abs(fov_down) + abs(fov_up)  # get field of view total in rad
 
     # get depth of all points
-    depth = np.linalg.norm(points, 2, axis=1)
+    # depth = np.linalg.norm(points, 2, axis=1)
+
+    depth = np.sqrt(np.square(points[:, 0]) + np.square(points[:, 1]) + np.square(points[:, 2]))
 
     # get scan components
     scan_x = points[:, 0]
@@ -50,7 +52,9 @@ def do_range_projection(points,labels):
     # get angles of all points
     yaw = -np.arctan2(scan_y, scan_x)
     pitch = np.arcsin(scan_z / depth)
-    pitch = np.nan_to_num(pitch)
+    # pitch = np.nan_to_num(pitch)
+    # pitch1 = np.copy(pitch)
+    pitch[np.isnan(pitch)] = 0
 
     # get projections in image coords
     proj_x = 0.5 * (yaw / np.pi + 1.0)          # in [0.0, 1.0]
@@ -94,4 +98,4 @@ def do_range_projection(points,labels):
     proj_mask = (proj_idx > 0).astype(np.int32)
     proj_sem_label[proj_y, proj_x] = sem_labels
 
-    return proj_sem_label
+    return proj_range,proj_xyz,proj_remission,proj_sem_label,proj_x,proj_y

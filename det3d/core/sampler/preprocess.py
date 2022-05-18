@@ -959,15 +959,15 @@ def global_translate_(gt_boxes, points, noise_translate_std):
     return gt_boxes, points
 
 
-if __name__ == "__main__":
-    bboxes = np.array(
-        [
-            [0.0, 0.0, 0.5, 0.5],
-            [0.2, 0.2, 0.6, 0.6],
-            [0.7, 0.7, 0.9, 0.9],
-            [0.55, 0.55, 0.8, 0.8],
-        ]
-    )
-    bbox_corners = box_np_ops.minmax_to_corner_2d(bboxes)
-    print(bbox_corners.shape)
-    print(box_collision_test(bbox_corners, bbox_corners))
+# if __name__ == "__main__":
+#     bboxes = np.array(
+#         [
+#             [0.0, 0.0, 0.5, 0.5],
+#             [0.2, 0.2, 0.6, 0.6],
+#             [0.7, 0.7, 0.9, 0.9],
+#             [0.55, 0.55, 0.8, 0.8],
+#         ]
+#     )
+#     bbox_corners = box_np_ops.minmax_to_corner_2d(bboxes)
+#     print(bbox_corners.shape)
+#     print(box_collision_test(bbox_corners, bbox_corners))

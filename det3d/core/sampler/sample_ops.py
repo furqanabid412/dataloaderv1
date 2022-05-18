@@ -695,14 +695,17 @@ class DataBaseSamplerV2:
         # sampled only loads the informations related to camera
         # however it does not load the lidarpoints
 
+        # print("here1")
         sampled = self._sampler_dict[name].sample(num)
         sampled = copy.deepcopy(sampled)
 
-
+        # print("here2")
         num_gt = gt_boxes.shape[0] # number of objects present in original frame
         num_sampled = len(sampled) # number of objects sampled for the given class
         # get the image corners of the gt_boxes i.e. gt_boxes_bv --> (N,4(corners), 2(x,y))
         gt_boxes_bv = box_np_ops.center_to_corner_box2d(gt_boxes[:, 0:2], gt_boxes[:, 3:5], gt_boxes[:, -1])
+
+        # print("here3")
 
         # stack the sampled boxes for the given class -> (n,9) where 9 features are (x,y,z,w,l,h,vx,vy,-yaw-(pi/2))
         sp_boxes = np.stack([i["box3d_lidar"] for i in sampled], axis=0)
@@ -710,30 +713,47 @@ class DataBaseSamplerV2:
         valid_mask = np.zeros([gt_boxes.shape[0]], dtype=np.bool_)
         valid_mask = np.concatenate([valid_mask, np.ones([sp_boxes.shape[0]], dtype=np.bool_)], axis=0)
 
+        # print("here4")
+
         # concatenating the gt_boxes of original frame + current class sampled sp_boxes
         boxes = np.concatenate([gt_boxes, sp_boxes], axis=0).copy()
+
 
         # _enable_global_rot = not implemented here
         if self._enable_global_rot:
             # place samples to any place in a circle.
             prep.noise_per_object_v3_(boxes, None, valid_mask, 0, 0, self._global_rot_range, num_try=100)
 
+        # print("here5")
+
         sp_boxes_new = boxes[gt_boxes.shape[0]:]
         sp_boxes_bv = box_np_ops.center_to_corner_box2d(sp_boxes_new[:, 0:2], sp_boxes_new[:, 3:5], sp_boxes_new[:, -1])
+
+        # print("here6")
+
 
         # get the image corners of the gt_boxes+sp_boxes i.e. total_bv --> (N+n,4(corners), 2(x,y))
         total_bv = np.concatenate([gt_boxes_bv, sp_boxes_bv], axis=0)
         # coll_mat = collision_test_allbox(total_bv)
         # returns the collision matrix with (N,M) where N=dim of first input , M=dim of second input
+
+        # print("here7")
+
         coll_mat = prep.box_collision_test(total_bv, total_bv)
         sp_frustums = np.stack([i["frustum"] for i in sampled], axis=0)
+
+        # print("here8")
 
         # returns (N+n,N+n) collision matrix
         frustum_coll_mat = self.frustum_collision_test(gt_frustums, sp_frustums)
         coll_mat = np.logical_or(coll_mat, frustum_coll_mat)
 
+        # print("here9")
+
         diag = np.arange(total_bv.shape[0])
         coll_mat[diag, diag] = False
+
+        # print("here10")
 
         valid_samples = []
         for i in range(num_gt, num_gt + num_sampled):
@@ -748,6 +768,7 @@ class DataBaseSamplerV2:
                     sampled[i - num_gt]["rot_transform"] = (
                             boxes[i, -1] - sp_boxes[i - num_gt, -1]
                     )
+                # print("here11", i)
                 valid_samples.append(sampled[i - num_gt])
 
         return valid_samples
