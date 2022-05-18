@@ -27,6 +27,33 @@ def visualize_pcloud(scan_points,scan_labels):
     open3d.visualization.ViewControl()
 
 
+def visualize_multi_pcloud(scan_points,scan_labels):
+    # vis = open3d.visualization.Visualizer()
+    # vis.create_window()
+    label_colormap = yaml.safe_load(open('configs/nusc/colormap.yaml', 'r'))
+    label_colormap = label_colormap['short_color_map']
+    # rendering the pcloud in open3d
+    pcd = open3d.geometry.PointCloud()
+    # scan_points = scan_points.numpy()
+    scan_points = scan_points[:, :3]
+    pcd.points = open3d.utility.Vector3dVector(scan_points)
+    # scan_labels = scan_labels.numpy()
+    # scan_labels = scan_labels[scan_labels != -1]
+    scan_labels = scan_labels.astype(np.int)
+    colors = np.array([label_colormap[x] for x in scan_labels])
+    pcd.colors = open3d.utility.Vector3dVector(colors / 255.0)
+    vis = open3d.visualization.VisualizerWithKeyCallback()
+    # vis.create_window(width=width, height=height, left=100)
+    # vis.add_geometry(pcd)
+    vis = open3d.visualization.draw_geometries([pcd])
+    open3d.visualization.ViewControl()
+
+    from open3d.visualization import Visualizer
+    vis = Visualizer()
+    vis.create_window()
+
+
+
 def visualize_camera(img):
     img= np.concatenate(img)
     cv2.imwrite('data.jpg', img)

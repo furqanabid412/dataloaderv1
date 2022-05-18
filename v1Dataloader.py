@@ -20,6 +20,8 @@ from visualize import visualize_pcloud,visualize_camera,plot_colormap,visualize_
 
 if __name__ == "__main__":
 
+
+
     config_file = './configs/nusc/lidarseg/nusc_lidarseg.py'
     cfg = Config.fromfile(config_file)
     dataset = build_dataset(cfg.data.train)
