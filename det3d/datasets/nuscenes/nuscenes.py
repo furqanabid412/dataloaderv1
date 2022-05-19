@@ -213,26 +213,6 @@ class NuScenesDataset(PointCloudDataset):
 
         data, _ = self.pipeline(res, info)
 
-
-
-        points = data['lidar']['points']
-
-        if data['lidar']['lidarseg'].ndim==1:
-            labels = np.expand_dims(data['lidar']['lidarseg'],axis=1)
-        else:
-            labels = data['lidar']['lidarseg']
-
-        concatData = np.hstack((points, labels))
-        datalength = concatData.shape[0]
-        if (datalength > self.maxPoints):
-            concatData = concatData[:self.maxPoints, :]
-
-        if (datalength < self.maxPoints):
-            concatData = np.pad(concatData, [(0, self.maxPoints - datalength), (0, 0)], mode='constant')
-
-        points = concatData[:,0:-1]
-        labels = concatData[:,-1]
-
         if self.use_img:
             # for testing
             if False:
@@ -244,17 +224,38 @@ class NuScenesDataset(PointCloudDataset):
                         data[i]['img'] = [self.get_image(cur_img) for cur_img in data[i]['img']]
                         data[i]['img'] = np.stack(data[i]['img'], axis=0)
 
-        # map labels to prediction classes
-        from utils import class_mapping
-        labels = class_mapping(labels.astype(np.int))
 
-        from rangeProjection import do_range_projection
-        # range projection
-        proj_range, proj_xyz, proj_remission, projected_labels, proj_x, proj_y = do_range_projection(points, labels)
+        # modified part
+        if True:
+            points = data['lidar']['points']
 
-        projected_rangeimg = np.concatenate(
-            (np.expand_dims(proj_remission, axis=0), np.expand_dims(proj_range, axis=0),
-             np.rollaxis(proj_xyz, 2)), axis=0)
+            if data['lidar']['lidarseg'].ndim == 1:
+                labels = np.expand_dims(data['lidar']['lidarseg'], axis=1)
+            else:
+                labels = data['lidar']['lidarseg']
+
+            concatData = np.hstack((points, labels))
+            datalength = concatData.shape[0]
+            if (datalength > self.maxPoints):
+                concatData = concatData[:self.maxPoints, :]
+
+            if (datalength < self.maxPoints):
+                concatData = np.pad(concatData, [(0, self.maxPoints - datalength), (0, 0)], mode='constant')
+
+            points = concatData[:, 0:-1]
+            labels = concatData[:, -1]
+
+            # map labels to prediction classes
+            from utils import class_mapping
+            labels = class_mapping(labels.astype(np.int))
+
+            from rangeProjection import do_range_projection
+            # range projection
+            proj_range, proj_xyz, proj_remission, projected_labels, proj_x, proj_y = do_range_projection(points, labels)
+
+            projected_rangeimg = np.concatenate(
+                (np.expand_dims(proj_remission, axis=0), np.expand_dims(proj_range, axis=0),
+                 np.rollaxis(proj_xyz, 2)), axis=0)
 
         # return data
         # return {"points":points,
@@ -266,6 +267,7 @@ class NuScenesDataset(PointCloudDataset):
             "projected_rangeimg":projected_rangeimg,
             "projected_labels":projected_labels,
             }
+        # return data
 
 
     def __getitem__(self, idx):

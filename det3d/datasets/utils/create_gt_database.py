@@ -3,7 +3,7 @@ from pathlib import Path
 import os 
 import numpy as np
 
-from det3d.core import box_np_ops
+from det3d.core.bbox import box_np_ops
 from det3d.datasets.dataset_factory import get_dataset
 from tqdm import tqdm
 
@@ -186,7 +186,7 @@ def create_groundtruth_database(
                     if segClass == names[i]:
                         matchedPts += 1
 
-                if matchedPts >= 5 and (matchedPts / totalPts) >= 0.75:
+                if matchedPts >= 5 and (matchedPts / totalPts) >= 0.90:
                     with open(filepath, "w") as f:
                         try:
                             gt_points[:, :point_features].tofile(f)
@@ -196,7 +196,7 @@ def create_groundtruth_database(
                 elif matchedPts < 5:
                     # logger.info("index # {} object # {} has less than 5 points".format(index, i))
                     continue
-                elif (matchedPts / totalPts) < 0.75:
+                elif (matchedPts / totalPts) < 0.90:
                     # logger.info("index # {} object # {} has {} matchedPts out of {} total points".
                     #       format(index, i, totalPts - matchedPts, matchedPts))
                     continue

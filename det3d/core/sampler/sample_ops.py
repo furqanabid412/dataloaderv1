@@ -305,6 +305,7 @@ class DataBaseSamplerV2:
             cam_name=None,
             road_planes=None,
             doLidarSegmentation = False,
+            verbose = False
     ):
 
         # class-wise numbers of objects to be sampled
@@ -379,7 +380,8 @@ class DataBaseSamplerV2:
 
                         remaining = remaining-len(sampled_cls)
                         run+=1
-                        print("name",class_name,"sampled",len(sampled_cls),"remained",remaining)
+                        if verbose:
+                            print("name",class_name,"sampled",len(sampled_cls),"remained",remaining)
                         # print("\n")
 
                         # not implemeneted here
