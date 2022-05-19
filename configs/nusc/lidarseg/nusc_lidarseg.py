@@ -24,7 +24,7 @@ data_root = 'E:/Datasets/NuScenes/new_test_run/v1.0-mini'
 db_info_path = "/dbinfos_{:03d}rate_{:02d}sweeps_withvelo_crossmodal.pkl".format(int(rate*100), nsweeps)
 
 train_anno = "/infos_train_{:02d}sweeps_withvelo_filter_True_{:03d}rate_crossmodal.pkl".format(nsweeps, int(rate*100))
-val_anno = "/infos_val_10sweeps_withvelo_filter_True_crossmodal.pkl"
+val_anno = "/infos_val_00sweeps_withvelo_filter_True_crossmodal.pkl"
 test_anno = ""
 version = 'v1.0-mini'
 

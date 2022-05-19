@@ -1,34 +1,30 @@
-import numpy as np
-
-from det3d.datasets.dataset_factory import get_dataset
-from det3d.torchie import Config
-from det3d.datasets import build_dataset
-from torch.utils.data import DataLoader
-from det3d.torchie.parallel import collate, collate_kitti
-
+import torch
+import numpy
 from tqdm import tqdm
-import warnings
-warnings.filterwarnings("ignore")
-
-from visualize import visualize_pcloud,visualize_camera,plot_colormap,visualize_2dlabels
-
-# def collate_nusc(batch_list, samples_per_gpu=1):
-#     print("wait")
-
+from models.pytorchLighteninig.plDataloader import NuscPLLoader
 
 
 
 if __name__ == "__main__":
-
-
-
     config_file = './configs/nusc/lidarseg/nusc_lidarseg.py'
-    cfg = Config.fromfile(config_file)
-    dataset = build_dataset(cfg.data.train)
-    # dataset = build_dataset(cfg.data.val)
-    print("dataset length is : ",dataset.__len__())
+    dataset = NuscPLLoader(config_file,batch_size=2,num_workers=2)
+    dataset.setup('fit')
+    dataloader=dataset.train_dataloader()
 
-    data_loader = DataLoader(dataset,batch_size=4,shuffle=False,num_workers=4,pin_memory=False,)
+    cnt = 0
+    fst_moment = torch.empty(5)
+    snd_moment = torch.empty(5)
 
-    for i, data_batch in tqdm(enumerate(data_loader)):
-        print(i)
+    for data in tqdm(dataloader):
+        images=data['projected_rangeimg']
+        b, c, h, w = images.shape
+        nb_pixels = b * h * w
+        sum_ = torch.sum(images, dim=[0, 2, 3])
+        sum_of_square = torch.sum(images ** 2,
+                                  dim=[0, 2, 3])
+        fst_moment = (cnt * fst_moment + sum_) / (cnt + nb_pixels)
+        snd_moment = (cnt * snd_moment + sum_of_square) / (cnt + nb_pixels)
+        cnt += nb_pixels
+        print("testing")
+
+    print("testing")
